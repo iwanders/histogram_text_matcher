@@ -60,10 +60,37 @@ pub fn line_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect>
             res.push(Rect::at(0, begin_pos as i32).of_size(image.width(), r - begin_pos));
             start = None;
         }
-
-        // println!("{r} -> {sum}");
     }
-    // imageproc::integral_image::row_running_sum
+    res
+}
+
+pub fn token_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect>
+{
+    // let gray = DynamicImage::ImageRgb8(*image).into_luma8();
+    let gray = grayscale(image);
+    let width = image.width();
+
+    let mut start: Option<u32> = None;
+
+    let mut res: Vec<imageproc::rect::Rect> = vec!();
+
+    for c in 0..width
+    {
+        let sum = (0..image.height()).map(|v|{gray.get_pixel(c, v)}).fold(0u32, |a, b| { a + ((*b).0[0] as u32) });
+        let something = sum != 0;
+
+        if start.is_none() && something
+        {
+            // start of new row.
+            start = Some(c);
+        } else if start.is_some() && !something
+        {
+            let begin_pos = start.unwrap();
+            // finalize
+            res.push(Rect::at(begin_pos as i32, 0).of_size(c - begin_pos, image.height()));
+            start = None;
+        }
+    }
     res
 }
 
@@ -78,9 +105,25 @@ pub fn manipulate_canvas()
     let lines = line_splitter(&image);
     println!("{lines:#?}");
     let mut image_with_rect = image.clone();
-    for b in lines
+    for b in lines.iter()
     {
-       image_with_rect = imageproc::drawing::draw_hollow_rect(&image_with_rect, b, Rgb([255u8, 0u8, 255u8]));
+       image_with_rect = imageproc::drawing::draw_hollow_rect(&image_with_rect, *b, Rgb([255u8, 0u8, 255u8]));
+    }
+    let _ = image_with_rect.save(Path::new("example_canvas_boxes.png")).unwrap();
+
+    for b in lines.iter()
+    {
+        let sub_img = image::SubImage::new(&image, b.left() as u32, b.top() as u32, b.width(), b.height());
+        let sub_img = sub_img.to_image();
+        let tokens = token_splitter(&sub_img);
+        println!("{tokens:#?}");
+
+        for z in tokens.iter()
+        {
+
+            let mut drawable = image::GenericImage::sub_image(&mut image_with_rect, b.left() as u32, b.top() as u32, b.width(), b.height());
+            imageproc::drawing::draw_hollow_rect_mut(&mut drawable, *z, Rgb([0u8, 255u8, 255u8]));
+        }
     }
     let _ = image_with_rect.save(Path::new("example_canvas_boxes.png")).unwrap();
 }
