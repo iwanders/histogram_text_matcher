@@ -220,7 +220,7 @@ pub fn manipulate_canvas() {
     things_with_token_map(&token_map);
 }
 
-fn crop_token_map(map: &TokenMap) -> TokenMap
+fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
 {
     let mut output: TokenMap = vec!();
     for (pos, input_rect, image) in map
@@ -241,6 +241,12 @@ fn crop_token_map(map: &TokenMap) -> TokenMap
                 max_x = std::cmp::max(max_x, x);
             }
         };
+
+        if only_width
+        {
+            min_y = 0;
+            max_y = image.height();
+        }
         if (min_y == u32::MAX) || (min_x == u32::MAX)
         {
             output.push((*pos, *input_rect, image.clone()));
@@ -273,7 +279,7 @@ fn crop_token_map(map: &TokenMap) -> TokenMap
 }
 
 fn things_with_token_map(map: &TokenMap) {
-    let reduced_map = crop_token_map(map);
+    let reduced_map = crop_token_map(map, true);
 
     let path = Path::new("./priv/example_canvas.png");
     let mut image = open(path)
@@ -322,6 +328,7 @@ fn things_with_token_map(map: &TokenMap) {
     for y_offset in -5..10
     {
         for x in 0..sub_image.width() {
+            
         }
     }
 }
