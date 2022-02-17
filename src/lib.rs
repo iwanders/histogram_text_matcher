@@ -199,10 +199,16 @@ pub fn manipulate_canvas() {
                 b.height(),
             );
             imageproc::drawing::draw_hollow_rect_mut(&mut drawable, *z, Rgb([0u8, 255u8, 255u8]));
+
+            let global_rect = Rect::at(
+                b.left() + z.left(),
+                b.top() + z.top(),
+            )
+            .of_size(z.width(), z.height());
             token_map.push((
                 (r, c),
-                *z,
-                image::DynamicImage::ImageRgb8(drawable.to_image()).into_luma8(),
+                global_rect,
+                image::DynamicImage::ImageRgb8(image.view(global_rect.left() as u32, global_rect.top() as u32, global_rect.width(), global_rect.height()).to_image()).into_luma8(),
             ));
         }
     }
@@ -219,13 +225,15 @@ fn crop_token_map(map: &TokenMap) -> TokenMap
     let mut output: TokenMap = vec!();
     for (pos, input_rect, image) in map
     {
+        let tmp = image.clone();
+        let reduced_image = image::DynamicImage::ImageRgb8(filter_relevant(&image::DynamicImage::ImageLuma8(tmp).to_rgb8())).into_luma8();
         // Determine new bounds in this image.
         let mut min_y = u32::MAX;
         let mut max_y = 0;
         let mut min_x = u32::MAX;
         let mut max_x = 0;
-        for (x, y, p) in image.enumerate_pixels() {
-            if p.0[0]  != 0u8
+        for (x, y, p) in reduced_image.enumerate_pixels() {
+            if p.0[0] != 0u8
             {
                 min_y = std::cmp::min(min_y, y);
                 max_y = std::cmp::max(max_y, y);
@@ -233,7 +241,16 @@ fn crop_token_map(map: &TokenMap) -> TokenMap
                 max_x = std::cmp::max(max_x, x);
             }
         };
+        if (min_y == u32::MAX) || (min_x == u32::MAX)
+        {
+            output.push((*pos, *input_rect, image.clone()));
+            continue;
+        }
 
+        println!("min_y : {min_y:?}");
+        println!("max_y : {max_y:?}");
+        println!("min_x : {min_x:?}");
+        println!("max_x : {max_x:?}");
         // Crop the actual template.
         let cropped_image = image.view(
             min_x,
@@ -247,18 +264,31 @@ fn crop_token_map(map: &TokenMap) -> TokenMap
             input_rect.left() + min_x as i32,
             input_rect.top() + min_y as i32,
         )
-        .of_size(max_x - min_x, max_y - min_y);
+        .of_size(max_x + 1 - min_x, max_y + 1 - min_y);
+        println!("Original rect: {input_rect:?}, new rect: {new_rect:?}");
     
         output.push((*pos, new_rect, cropped_image.to_image()));
-        // pub max_value_location: (u32, u32),
-        // pub min_value_location: (u32, u32),
     }
-//Vec<((usize, usize), Rect, image::GrayImage)>
     output
 }
 
 fn things_with_token_map(map: &TokenMap) {
     let reduced_map = crop_token_map(map);
+
+    let path = Path::new("./priv/example_canvas.png");
+    let mut image = open(path)
+        .expect(&format!("Could not load image at {:?}", path))
+        .to_rgb8();
+    let mut image = filter_relevant(&image);
+
+    for (_, b, _) in reduced_map {
+        image = imageproc::drawing::draw_hollow_rect(&image, b, Rgb([255u8, 0u8, 255u8]));
+    }
+    let _ = image
+        .save(Path::new("token_map_reduced.png"))
+        .unwrap();
+
+
     let use_rows = std::collections::hash_set::HashSet::from([0usize, 2]);
     // 0 and 2 are the big font sizes.
     // 5 and 7 are the smaller font sizes.
