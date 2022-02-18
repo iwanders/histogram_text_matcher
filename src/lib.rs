@@ -160,7 +160,21 @@ pub fn line_selector_screenshot() {
     // let _ = relevant.save("result_14.png").unwrap();
 }
 
-type TokenMap = Vec<((usize, usize), Rect, image::GrayImage, image::GrayImage)>;
+type TokenIndex = (usize, usize);
+type Token = (TokenIndex, Rect, image::GrayImage, image::GrayImage);
+type TokenMap = Vec<Token>;
+
+fn find_token(token: TokenIndex, map: &TokenMap) -> Token
+{
+    for a in map.iter()
+    {
+        if (a.0 == token)
+        {
+            return a.clone();
+        }
+    }
+    panic!("Couldn't find token!?");
+}
 
 pub fn manipulate_canvas() {
     // line_selector_screenshot();
@@ -266,10 +280,10 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
             continue;
         }
 
-        println!("min_y : {min_y:?}");
-        println!("max_y : {max_y:?}");
-        println!("min_x : {min_x:?}");
-        println!("max_x : {max_x:?}");
+        // println!("min_y : {min_y:?}");
+        // println!("max_y : {max_y:?}");
+        // println!("min_x : {min_x:?}");
+        // println!("max_x : {max_x:?}");
         // Crop the actual template.
         let cropped_image = image.view(
             min_x,
@@ -290,7 +304,7 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
             input_rect.top() + min_y as i32,
         )
         .of_size(max_x + 1 - min_x, max_y + 1 - min_y);
-        println!("Original rect: {input_rect:?}, new rect: {new_rect:?}");
+        // println!("Original rect: {input_rect:?}, new rect: {new_rect:?}");
     
         output.push((*pos, new_rect, cropped_image.to_image(), cropped_filtered_image.to_image()));
     }
@@ -348,7 +362,7 @@ fn things_with_token_map(map: &TokenMap) {
     let mut image = open(path)
         .expect(&format!("Could not load image at {:?}", path))
         .to_rgb8();
-    let mut image = filter_relevant(&image);
+    let mut image = filter_white(&image);
 
     let hist_map = histogram_token_map(&reduced_map);
 
@@ -361,11 +375,6 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_reduced.png"))
         .unwrap();
 
-        
-
-    let use_rows = std::collections::hash_set::HashSet::from([0usize, 2]);
-    // 0 and 2 are the big font sizes.
-    // 5 and 7 are the smaller font sizes.
     let path = Path::new("Screenshot167.png");
     // let path = Path::new("z.png");
 
@@ -401,11 +410,99 @@ fn things_with_token_map(map: &TokenMap) {
 
     let sub_image_gray = image::DynamicImage::ImageRgb8(sub_image.to_image()).into_luma8();
     let sub_image_hist = image_to_histogram(&sub_image_gray);
-    let sub_image_mut = draw_histogram(&image, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
+    let mut sub_image_mut = draw_histogram(&image, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
     let _ = sub_image_mut
         .save(Path::new("token_map_line_histogram.png"))
         .unwrap();
 
-    
+    // Now, the problem is reduced to some 1d vectors, and we can just advance to the first non-zero
+    // then match the best letter, pop that letter, advance again.
+
+    let use_rows = std::collections::hash_set::HashSet::from([0usize, 2]);
+    // 0 and 2 are the big font sizes.
+    // 5 and 7 are the smaller font sizes.
+
+    // Lets reduce the palette we have to use a bit here.
+    let mut reduced: HistogramMap = vec!();
+    for z in hist_map
+    {
+        if use_rows.contains(&z.0.0)
+        {
+            reduced.push(z);
+        }
+    }
+    // println!("reduced: {reduced:?}");
+    // println!("Image hist: {sub_image_hist:?}");
+
+    let mut v = sub_image_hist.clone();
+    let mut i: usize = 0;
+    while i < v.len() - 1
+    {
+        if v[i] == 0
+        {
+            i += 1;
+            continue;
+        }
+
+        // v[i] is now the first non-zero entry.
+        let remainder = &v[i..];
+
+        fn calc_score(pattern: &[u8], to_match: &[u8]) -> u8
+        {
+            let mut res: u8 = 0;
+            let min_width = 3;
+            for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter())
+            {
+                let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
+                res += if (a > b) {a - b} else { b - a }; 
+            }
+            res
+        }
+
+        let mut scores: Vec<u8> = vec!();
+        scores.resize(reduced.len(), 0u8);
+        for ((index, rect, hist), score) in reduced.iter().zip(scores.iter_mut())
+        {
+            *score = calc_score(hist, &remainder);
+        }
+        // println!("{scores:?}");
+
+        // The lowest score is the best match, (the least difference)...
+        // https://stackoverflow.com/a/53908709
+        let index_of_min: Option<usize> = scores
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index);
+
+        if let Some(best) = index_of_min
+        {
+            let token = &reduced[best];
+            let score = scores[best];
+            println!("Found {best}, with {score} -> {token:?}");
+
+            // sub_image_mut = 
+            //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
+            let original_map_token = find_token(token.0, map);
+
+            let (index, rect, gray, reduced) = original_map_token;
+            let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
+            // Try to blit the original token onto the image we're drawing on.
+            let mut drawable = sub_image_mut.sub_image(i as u32, 50, rect.width(), rect.height());
+            drawable.copy_from(&img, 0, 0);
+
+            i += token.2.len();
+        }
+        else
+        {
+            println!("Huh? didn't have a lowest score??");
+            i +=1;
+        }
+    }
+    let _ = sub_image_mut
+        .save(Path::new("token_map_line_guessed.png"))
+        .unwrap();
+
     
 }
+
