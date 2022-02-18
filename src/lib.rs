@@ -37,6 +37,17 @@ pub fn filter_relevant(image: &RgbImage) -> RgbImage {
     })
 }
 
+pub fn filter_white(image: &RgbImage) -> RgbImage {
+    let white = Rgb([255u8, 255u8, 255u8]);
+
+    map_colors(image, |p| -> Rgb<u8> {
+        match p {
+            _ if p == white => white,
+            _ => Rgb([0u8, 0u8, 0u8]),
+        }
+    })
+}
+
 pub fn line_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
     // let gray = DynamicImage::ImageRgb8(*image).into_luma8();
     let gray = grayscale(image);
@@ -160,7 +171,7 @@ pub fn manipulate_canvas() {
         .to_rgb8();
 
     // let mut image = filter_relevant(&image);
-    let filtered = filter_relevant(&image);
+    let filtered = filter_white(&image);
     let _ = filtered
         .save(Path::new("example_canvas_filtered.png"))
         .unwrap();
@@ -248,6 +259,7 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
             min_y = 0;
             max_y = image.height();
         }
+        max_x += 1; // What's up with this here!? Necessary to fix the histogram, but something feels off.
         if (min_y == u32::MAX) || (min_x == u32::MAX)
         {
             output.push((*pos, *input_rect, image.clone(), image_filtered.clone()));
@@ -286,24 +298,30 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
 }
 
 type Histogram = Vec<u8>;
+fn image_to_histogram(image: &image::GrayImage) -> Histogram
+{
+    let mut hist : Histogram = vec!();
+    for x in 0..image.width()
+    {
+        let mut s: u8 = 0;
+        for y in 0..image.height()
+        {
+            if image.get_pixel(x,y).0[0] != 0u8 {
+                s += 1;
+            }
+        }
+        hist.push(s)
+    }
+    hist
+}
+
 type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 fn histogram_token_map(map: &TokenMap) -> HistogramMap
 {
     let mut res: HistogramMap = vec!();
     for (pos, input_rect, image, image_filtered) in map
     {
-        let mut hist : Histogram = vec!();
-        for x in 0..image.width()
-        {
-            let mut s: u8 = 0;
-            for y in 0..image.height()
-            {
-                if image_filtered.get_pixel(x,y).0[0] != 0u8 {
-                    s += 1;
-                }
-            }
-            hist.push(s)
-        }
+        let mut hist = image_to_histogram(image_filtered);
         res.push((*pos, *input_rect, hist));
     }
     res
@@ -373,12 +391,21 @@ fn things_with_token_map(map: &TokenMap) {
         line.width(),
         line.height(),
     );
-    let sub_image = image::DynamicImage::ImageRgb8(sub_image.to_image()).into_luma8();
-    // Now, we want to iterate... left to right, and we need to iterate over a bit of y offsets in the map.
-    for y_offset in -5..10
-    {
-        for x in 0..sub_image.width() {
-            
-        }
-    }
+    let new_rect = Rect::at(
+        line.left() as i32,
+        line.top() as i32,
+    )
+    .of_size(line.width(), line.height());
+
+    let mut sub_image_mut = sub_image.to_image();
+
+    let sub_image_gray = image::DynamicImage::ImageRgb8(sub_image.to_image()).into_luma8();
+    let sub_image_hist = image_to_histogram(&sub_image_gray);
+    let sub_image_mut = draw_histogram(&image, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
+    let _ = sub_image_mut
+        .save(Path::new("token_map_line_histogram.png"))
+        .unwrap();
+
+    
+    
 }
