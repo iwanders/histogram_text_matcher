@@ -390,116 +390,133 @@ fn things_with_token_map(map: &TokenMap) {
         .unwrap();
 
     let lines = line_splitter(&image);
-    // println!("{lines:#?}");
-    let line = lines[0];
-    println!("{line:?}");
-    let sub_image = image::SubImage::new(
-        &image,
-        line.left() as u32,
-        line.top() as u32,
-        line.width(),
-        line.height(),
-    );
-    let new_rect = Rect::at(
-        line.left() as i32,
-        line.top() as i32,
-    )
-    .of_size(line.width(), line.height());
-
-    let mut sub_image_mut = sub_image.to_image();
-
-    let sub_image_gray = image::DynamicImage::ImageRgb8(sub_image.to_image()).into_luma8();
-    let sub_image_hist = image_to_histogram(&sub_image_gray);
-    let mut sub_image_mut = draw_histogram(&image, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
-    let _ = sub_image_mut
-        .save(Path::new("token_map_line_histogram.png"))
-        .unwrap();
-
-    // Now, the problem is reduced to some 1d vectors, and we can just advance to the first non-zero
-    // then match the best letter, pop that letter, advance again.
-
-    let use_rows = std::collections::hash_set::HashSet::from([0usize, 2]);
-    // 0 and 2 are the big font sizes.
-    // 5 and 7 are the smaller font sizes.
-
-    // Lets reduce the palette we have to use a bit here.
-    let mut reduced: HistogramMap = vec!();
-    for z in hist_map
+    
+    let mut image_mutable = image.clone();
+    for line in lines
     {
-        if use_rows.contains(&z.0.0)
-        {
-            reduced.push(z);
-        }
-    }
-    // println!("reduced: {reduced:?}");
-    // println!("Image hist: {sub_image_hist:?}");
+        // let line = lines[0];
+        println!("{line:?}");
+        let sub_image = image::SubImage::new(
+            &image,
+            line.left() as u32,
+            line.top() as u32,
+            line.width(),
+            line.height(),
+        );
+        let new_rect = Rect::at(
+            line.left() as i32,
+            line.top() as i32,
+        )
+        .of_size(line.width(), line.height());
 
-    let mut v = sub_image_hist.clone();
-    let mut i: usize = 0;
-    while i < v.len() - 1
-    {
-        if v[i] == 0
-        {
-            i += 1;
-            continue;
-        }
+        let mut sub_image_mut = sub_image.to_image();
 
-        // v[i] is now the first non-zero entry.
-        let remainder = &v[i..];
+        let sub_image_gray = image::DynamicImage::ImageRgb8(sub_image.to_image()).into_luma8();
+        let sub_image_hist = image_to_histogram(&sub_image_gray);
 
-        fn calc_score(pattern: &[u8], to_match: &[u8]) -> u8
+
+        image_mutable = draw_histogram(&image_mutable, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
+        let _ = image_mutable
+            .save(Path::new("token_map_line_histogram.png"))
+            .unwrap();
+
+        // Now, the problem is reduced to some 1d vectors, and we can just advance to the first non-zero
+        // then match the best letter, pop that letter, advance again.
+
+        let use_rows = std::collections::hash_set::HashSet::from([0usize, 2, 4]);
+        // 0 and 2 are the big font sizes.
+        // 4 is the big numbers
+        // 5 and 7 are the smaller font sizes.
+        // 9 is small numbers
+
+        // Lets reduce the palette we have to use a bit here.
+        let mut reduced: HistogramMap = vec!();
+        for z in hist_map.iter()
         {
-            let mut res: u8 = 0;
-            let min_width = 3;
-            for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter())
+            if use_rows.contains(&z.0.0)
             {
-                let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
-                res += if (a > b) {a - b} else { b - a }; 
+                reduced.push(z.clone());
             }
-            res
         }
+        // println!("reduced: {reduced:?}");
+        // println!("Image hist: {sub_image_hist:?}");
 
-        let mut scores: Vec<u8> = vec!();
-        scores.resize(reduced.len(), 0u8);
-        for ((index, rect, hist), score) in reduced.iter().zip(scores.iter_mut())
+        let mut v = sub_image_hist.clone();
+        let mut i: usize = 0;
+        while i < v.len() - 1
         {
-            *score = calc_score(hist, &remainder);
-        }
-        // println!("{scores:?}");
+            if v[i] == 0
+            {
+                i += 1;
+                continue;
+            }
 
-        // The lowest score is the best match, (the least difference)...
-        // https://stackoverflow.com/a/53908709
-        let index_of_min: Option<usize> = scores
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, _)| index);
+            // v[i] is now the first non-zero entry.
+            let remainder = &v[i..];
 
-        if let Some(best) = index_of_min
-        {
-            let token = &reduced[best];
-            let score = scores[best];
-            println!("Found {best}, with {score} -> {token:?}");
+            fn calc_score(pattern: &[u8], to_match: &[u8]) -> u8
+            {
+                let mut res: u8 = 0;
+                let min_width = 4;
+                for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter())
+                {
+                    let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
+                    res += if (a > b) {a - b} else { b - a }; 
+                }
+                res
+            }
 
-            // sub_image_mut = 
-            //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
-            let original_map_token = find_token(token.0, map);
+            let mut scores: Vec<u8> = vec!();
+            scores.resize(reduced.len(), 0u8);
+            for ((index, rect, hist), score) in reduced.iter().zip(scores.iter_mut())
+            {
+                *score = calc_score(hist, &remainder);
+            }
+            // println!("{scores:?}");
 
-            let (index, rect, gray, reduced) = original_map_token;
-            let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
-            // Try to blit the original token onto the image we're drawing on.
-            let mut drawable = sub_image_mut.sub_image(i as u32, 50, rect.width(), rect.height());
-            drawable.copy_from(&img, 0, 0);
+            // The lowest score is the best match, (the least difference)...
+            // https://stackoverflow.com/a/53908709
+            let index_of_min: Option<usize> = scores
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(index, _)| index);
 
-            i += token.2.len();
-        }
-        else
-        {
-            println!("Huh? didn't have a lowest score??");
-            i +=1;
+            if let Some(best) = index_of_min
+            {
+                let token = &reduced[best];
+                let score = scores[best];
+                println!("Found {best}, with {score} -> {token:?}");
+
+                // sub_image_mut = 
+                //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
+                let original_map_token = find_token(token.0, map);
+
+                let (index, rect, gray, reduced) = original_map_token;
+                let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
+                // Try to blit the original token onto the image we're drawing on.
+                let mut drawable = image_mutable.sub_image( i as u32, line.top() as u32, rect.width(), rect.height());
+
+                drawable.copy_from(&img, 0, 0);
+                // This causes an ICE?
+                // for (x, y, p) in img.enumerate_pixels() {
+                    // let scaling = p.0[0] as f32 / 255.0;
+                    // let colored_orig = Rgb([(255.0 * scaling) as u8, (255.0 * scaling) as u8, (255.0 * scaling) as u8]);
+                    // let v = imageproc::pixelops::interpolate(*drawable.get_pixel_mut(x, y), colored_orig, 0.5);
+                    // drawable.get_pixel_mut(x, y) = v;
+                    // drawable.get_pixel_mut(x, y) = colored_orig;
+                // };
+
+                i += token.2.len();
+            }
+            else
+            {
+                println!("Huh? didn't have a lowest score??");
+                i +=1;
+            }
         }
     }
-    let _ = sub_image_mut
+    let _ = image_mutable
         .save(Path::new("token_map_line_guessed.png"))
         .unwrap();
 
