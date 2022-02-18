@@ -1,5 +1,5 @@
 use image::imageops::colorops::grayscale;
-use image::{open, DynamicImage, Rgb, RgbImage, GenericImageView};
+use image::{open, DynamicImage, Rgb, RgbImage, GenericImageView, GenericImage};
 
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
@@ -149,7 +149,7 @@ pub fn line_selector_screenshot() {
     // let _ = relevant.save("result_14.png").unwrap();
 }
 
-type TokenMap = Vec<((usize, usize), Rect, image::GrayImage)>;
+type TokenMap = Vec<((usize, usize), Rect, image::GrayImage, image::GrayImage)>;
 
 pub fn manipulate_canvas() {
     // line_selector_screenshot();
@@ -209,6 +209,7 @@ pub fn manipulate_canvas() {
                 (r, c),
                 global_rect,
                 image::DynamicImage::ImageRgb8(image.view(global_rect.left() as u32, global_rect.top() as u32, global_rect.width(), global_rect.height()).to_image()).into_luma8(),
+                image::DynamicImage::ImageRgb8(filtered.view(global_rect.left() as u32, global_rect.top() as u32, global_rect.width(), global_rect.height()).to_image()).into_luma8(),
             ));
         }
     }
@@ -223,7 +224,7 @@ pub fn manipulate_canvas() {
 fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
 {
     let mut output: TokenMap = vec!();
-    for (pos, input_rect, image) in map
+    for (pos, input_rect, image, image_filtered) in map
     {
         let tmp = image.clone();
         let reduced_image = image::DynamicImage::ImageRgb8(filter_relevant(&image::DynamicImage::ImageLuma8(tmp).to_rgb8())).into_luma8();
@@ -249,7 +250,7 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
         }
         if (min_y == u32::MAX) || (min_x == u32::MAX)
         {
-            output.push((*pos, *input_rect, image.clone()));
+            output.push((*pos, *input_rect, image.clone(), image_filtered.clone()));
             continue;
         }
 
@@ -264,6 +265,12 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
             max_x - min_x,
             max_y - min_y,
         );
+        let cropped_filtered_image = image_filtered.view(
+            min_x,
+            min_y,
+            max_x - min_x,
+            max_y - min_y,
+        );
 
         // Now, we cook up the new rectangle.
         let new_rect = Rect::at(
@@ -273,9 +280,47 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
         .of_size(max_x + 1 - min_x, max_y + 1 - min_y);
         println!("Original rect: {input_rect:?}, new rect: {new_rect:?}");
     
-        output.push((*pos, new_rect, cropped_image.to_image()));
+        output.push((*pos, new_rect, cropped_image.to_image(), cropped_filtered_image.to_image()));
     }
     output
+}
+
+type Histogram = Vec<u8>;
+type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
+fn histogram_token_map(map: &TokenMap) -> HistogramMap
+{
+    let mut res: HistogramMap = vec!();
+    for (pos, input_rect, image, image_filtered) in map
+    {
+        let mut hist : Histogram = vec!();
+        for x in 0..image.width()
+        {
+            let mut s: u8 = 0;
+            for y in 0..image.height()
+            {
+                if image_filtered.get_pixel(x,y).0[0] != 0u8 {
+                    s += 1;
+                }
+            }
+            hist.push(s)
+        }
+        res.push((*pos, *input_rect, hist));
+    }
+    res
+}
+
+fn draw_histogram(image: &RgbImage, r: &Rect, hist: &Histogram, color: Rgb<u8>) -> RgbImage
+{
+    let mut c = image.clone();
+    for x in 0..hist.len()
+    {
+        let img_x = r.left() as u32 + x as u32;
+        for y in 0..hist[x]
+        {
+            *(c.get_pixel_mut(img_x, r.bottom() as u32 - (y as u32))) = color;
+        }
+    }
+    c
 }
 
 fn things_with_token_map(map: &TokenMap) {
@@ -287,13 +332,18 @@ fn things_with_token_map(map: &TokenMap) {
         .to_rgb8();
     let mut image = filter_relevant(&image);
 
-    for (_, b, _) in reduced_map {
-        image = imageproc::drawing::draw_hollow_rect(&image, b, Rgb([255u8, 0u8, 255u8]));
+    let hist_map = histogram_token_map(&reduced_map);
+
+    for (i, (_, b, _, _)) in reduced_map.iter().enumerate() {
+        image = imageproc::drawing::draw_hollow_rect(&image, grow_rect(&b), Rgb([255u8, 0u8, 255u8]));
+        let hist = &hist_map[i].2;
+        image = draw_histogram(&image, &b, hist, Rgb([255u8, 255u8, 0u8]));
     }
     let _ = image
         .save(Path::new("token_map_reduced.png"))
         .unwrap();
 
+        
 
     let use_rows = std::collections::hash_set::HashSet::from([0usize, 2]);
     // 0 and 2 are the big font sizes.
