@@ -6,6 +6,15 @@ use imageproc::rect::Rect;
 
 use std::path::Path;
 
+type TokenIndex = (usize, usize);
+type Token = (TokenIndex, Rect, image::GrayImage, image::GrayImage);
+type TokenMap = Vec<Token>;
+
+
+type Histogram = Vec<u8>;
+type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
+
+
 pub fn grow_rect(r: &Rect) -> Rect {
     Rect::at(
         std::cmp::max(r.left() - 1, 0),
@@ -160,10 +169,6 @@ pub fn line_selector_screenshot() {
     // let _ = relevant.save("result_14.png").unwrap();
 }
 
-type TokenIndex = (usize, usize);
-type Token = (TokenIndex, Rect, image::GrayImage, image::GrayImage);
-type TokenMap = Vec<Token>;
-
 fn find_token(token: TokenIndex, map: &TokenMap) -> Token
 {
     for a in map.iter()
@@ -311,7 +316,6 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap
     output
 }
 
-type Histogram = Vec<u8>;
 fn image_to_histogram(image: &image::GrayImage) -> Histogram
 {
     let mut hist : Histogram = vec!();
@@ -329,7 +333,6 @@ fn image_to_histogram(image: &image::GrayImage) -> Histogram
     hist
 }
 
-type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 fn histogram_token_map(map: &TokenMap) -> HistogramMap
 {
     let mut res: HistogramMap = vec!();
@@ -354,6 +357,113 @@ fn draw_histogram(image: &RgbImage, r: &Rect, hist: &Histogram, color: Rgb<u8>) 
     }
     c
 }
+
+
+fn calc_score(pattern: &[u8], to_match: &[u8]) -> u8
+{
+    let mut res: u8 = 0;
+    let min_width = 4;
+    for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter())
+    {
+        let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
+        res += if (a > b) {a - b} else { b - a }; 
+    }
+    res
+}
+
+fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8
+{
+    let mut res: u8 = 0;
+    for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter())
+    {
+        let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
+        res += if (a > b) {a - b} else { b - a }; 
+    }
+    res
+}
+
+
+
+fn search_tokens(input: &[u8], map: &HistogramMap) -> (Vec<usize>, u32)
+{
+    type Cost = i32;
+    let mut res : Vec<usize> = vec!();
+    let mut res_cost : i32 = 0;
+    let mut fringe = std::collections::BinaryHeap::<(Cost, Vec<usize>, &[u8])>::new();
+    // Heap holds (cost_so_far, path_taken, remainder)
+
+    let mut hist_tokens = vec!();
+    for (i, _, hist) in map.iter()
+    {
+        hist_tokens.push(hist);
+    }
+    // let whitespace_cost = vec!(0u8);
+    // hist_tokens.push(&whitespace_cost); // Add a space element.
+
+    // Pop first whitespace.
+    let mut start_base = 0;
+    while start_base < input.len() && input[start_base] == 0
+    {
+        start_base += 1;
+    }
+    let mut stripped_input = &input[start_base..];
+
+    // Seed the fringe.
+    for (i, z) in hist_tokens.iter().enumerate()
+    {
+        let cost_this_token = -(calc_score_min(&z, stripped_input, 0) as Cost);
+        let mut start_next = z.len();
+        while start_next < stripped_input.len() && stripped_input[start_next] == 0
+        {
+            start_next += 1;
+        }
+        fringe.push((cost_this_token, vec!(i), &stripped_input[start_next..]));
+    }
+    // println!("Fringe: {fringe:?}");
+
+    let limit = input.len() * map.len();
+    let mut counter = 0;
+
+    // Now, we can do the actual search, searching into the lowest cost, expanding the fringe with
+    // all options there.
+    while let Some((cost_so_far, path_taken, remainder)) = fringe.pop() {
+        res = path_taken.clone();
+        res_cost = cost_so_far;
+        if (remainder.len() == 0) || remainder.len() < 10
+        {
+            println!("Bailing, because remainder is short: {}", remainder.len());
+            // res = path_taken;
+            break;
+        }
+
+        for (i, z) in hist_tokens.iter().enumerate()
+        {
+            let cost_this_token = cost_so_far -(calc_score_min(&z, remainder, 0) as Cost);
+            let mut new_path = path_taken.clone();
+            new_path.push(i);
+
+            // Consume all whitespace until the next token...
+            let mut start_next = z.len();
+            while start_next < remainder.len() && remainder[start_next] == 0
+            {
+                start_next += 1;
+            }
+            fringe.push((cost_this_token, new_path, &remainder[std::cmp::min(remainder.len(), start_next)..]));
+        }
+        // fringe.push((cost_so_far, path_taken, remainder));
+
+        counter += 1;
+        if counter > limit || fringe.len() > limit
+        {
+            // println!("Something is bad... {counter}, {}", fringe.len());
+            break;
+        }
+    }
+    // println!("Fringe: {fringe:#?}");
+
+    (res, (res_cost * -1) as u32)
+}
+
 
 fn things_with_token_map(map: &TokenMap) {
     let reduced_map = crop_token_map(map, true);
@@ -389,9 +499,12 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_test_filtered.png"))
         .unwrap();
 
-    let lines = line_splitter(&image);
+    let mut lines = line_splitter(&image);
+    lines = vec!(lines[3]);
     
+    let mut image_line_histogram = image.clone();
     let mut image_mutable = image.clone();
+    let mut image_mutable_search = image.clone();
     for line in lines
     {
         // let line = lines[0];
@@ -415,8 +528,8 @@ fn things_with_token_map(map: &TokenMap) {
         let sub_image_hist = image_to_histogram(&sub_image_gray);
 
 
-        image_mutable = draw_histogram(&image_mutable, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
-        let _ = image_mutable
+        image_line_histogram = draw_histogram(&image_line_histogram, &new_rect, &sub_image_hist, Rgb([255u8, 255u8, 0u8]));
+        let _ = image_line_histogram
             .save(Path::new("token_map_line_histogram.png"))
             .unwrap();
 
@@ -430,12 +543,12 @@ fn things_with_token_map(map: &TokenMap) {
         // 9 is small numbers
 
         // Lets reduce the palette we have to use a bit here.
-        let mut reduced: HistogramMap = vec!();
+        let mut histmap_reduced: HistogramMap = vec!();
         for z in hist_map.iter()
         {
             if use_rows.contains(&z.0.0)
             {
-                reduced.push(z.clone());
+                histmap_reduced.push(z.clone());
             }
         }
         // println!("reduced: {reduced:?}");
@@ -454,21 +567,9 @@ fn things_with_token_map(map: &TokenMap) {
             // v[i] is now the first non-zero entry.
             let remainder = &v[i..];
 
-            fn calc_score(pattern: &[u8], to_match: &[u8]) -> u8
-            {
-                let mut res: u8 = 0;
-                let min_width = 4;
-                for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter())
-                {
-                    let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
-                    res += if (a > b) {a - b} else { b - a }; 
-                }
-                res
-            }
-
             let mut scores: Vec<u8> = vec!();
-            scores.resize(reduced.len(), 0u8);
-            for ((index, rect, hist), score) in reduced.iter().zip(scores.iter_mut())
+            scores.resize(histmap_reduced.len(), 0u8);
+            for ((index, rect, hist), score) in histmap_reduced.iter().zip(scores.iter_mut())
             {
                 *score = calc_score(hist, &remainder);
             }
@@ -484,7 +585,7 @@ fn things_with_token_map(map: &TokenMap) {
 
             if let Some(best) = index_of_min
             {
-                let token = &reduced[best];
+                let token = &histmap_reduced[best];
                 let score = scores[best];
                 println!("Found {best}, with {score} -> {token:?}");
 
@@ -515,7 +616,29 @@ fn things_with_token_map(map: &TokenMap) {
                 i +=1;
             }
         }
+
+        let search_res = search_tokens(&sub_image_hist, &histmap_reduced);
+        let (best_path, score) = search_res;
+        // Draw the search result...
+        let mut draw_index = 0usize;
+        for index in best_path.iter()
+        {
+            let token = &histmap_reduced[*index];
+            let original_map_token = find_token(token.0, map);
+            let (index, rect, gray, reduced) = original_map_token;
+            let img = image::DynamicImage::ImageLuma8(gray.clone()).to_rgb8();
+            // Try to blit the original token onto the image we're drawing on.
+            let mut drawable = image_mutable_search.sub_image(std::cmp::min(draw_index as u32, image_mutable.width() - rect.width()), line.top() as u32, rect.width(), rect.height());
+            draw_index += reduced.width() as usize;
+            drawable.copy_from(&img, 0, 0);
+        }
+        println!("search token: {best_path:?} -> {score:?}");
+        
     }
+    let _ = image_mutable_search
+        .save(Path::new("token_map_line_search.png"))
+        .unwrap();
+
     let _ = image_mutable
         .save(Path::new("token_map_line_guessed.png"))
         .unwrap();
