@@ -29,6 +29,7 @@ pub fn filter_relevant(image: &RgbImage) -> RgbImage {
     let font_unique = Rgb([194u8, 172u8, 109u8]);
     let font_meta = Rgb([255u8, 255u8, 255u8]);
     let font_common = Rgb([238u8, 238u8, 238u8]);
+    let font_rune = Rgb([255u8, 160u8, 0u8]);
     let font_ui_value = Rgb([204u8, 189u8, 110u8]);
     let font_ui_map = Rgb([192u8, 170u8, 107u8]);
 
@@ -41,6 +42,7 @@ pub fn filter_relevant(image: &RgbImage) -> RgbImage {
             _ if p == font_meta => font_meta,
             _ if p == font_ui_value => font_ui_value,
             _ if p == font_ui_map => font_ui_map,
+            _ if p == font_rune => font_rune,
             _ => Rgb([0u8, 0u8, 0u8]),
         }
     })
@@ -382,6 +384,18 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8
     res
 }
 
+fn calc_score_normalized(pattern: &[u8], to_match: &[u8]) -> f32
+{
+    let mut res: u8 = 0;
+    // let min_width = 4;
+    for (x_a, b) in (0..pattern.len()).zip(to_match.iter())
+    {
+        let a = &(if (x_a < pattern.len()) { pattern[x_a] } else { 0u8 });
+        res += if (a > b) {a - b} else { b - a }; 
+    }
+    ((res as f32) / (pattern.len() as f32)) + 0.75*0.1 * (10.0 - (pattern.len() as f32))
+}
+
 
 
 fn search_tokens(input: &[u8], map: &HistogramMap) -> (Vec<usize>, u32)
@@ -456,7 +470,7 @@ fn search_tokens(input: &[u8], map: &HistogramMap) -> (Vec<usize>, u32)
         if counter > limit || fringe.len() > limit
         {
             // println!("Something is bad... {counter}, {}", fringe.len());
-            // break;
+            break;
         }
     }
     // println!("Fringe: {fringe:#?}");
@@ -485,7 +499,9 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_reduced.png"))
         .unwrap();
 
-    let path = Path::new("Screenshot167.png");
+    // let path = Path::new("Screenshot167.png");
+    // let path = Path::new("Screenshot169.png");
+    let path = Path::new("Screenshot176.png");
     // let path = Path::new("z.png");
 
     let mut image = open(path)
@@ -500,7 +516,7 @@ fn things_with_token_map(map: &TokenMap) {
         .unwrap();
 
     let mut lines = line_splitter(&image);
-    lines = vec!(lines[2]);
+    // lines = vec!(lines[2]);
     
     let mut image_line_histogram = image.clone();
     let mut image_mutable = image.clone();
@@ -536,7 +552,7 @@ fn things_with_token_map(map: &TokenMap) {
         // Now, the problem is reduced to some 1d vectors, and we can just advance to the first non-zero
         // then match the best letter, pop that letter, advance again.
 
-        let use_rows = std::collections::hash_set::HashSet::from([0usize, 2, 4]);
+        let use_rows = std::collections::hash_set::HashSet::from([0usize, 2, 4, 5, 7, 9]);
         // 0 and 2 are the big font sizes.
         // 4 is the big numbers
         // 5 and 7 are the smaller font sizes.
@@ -567,8 +583,9 @@ fn things_with_token_map(map: &TokenMap) {
             // v[i] is now the first non-zero entry.
             let remainder = &v[i..];
 
-            let mut scores: Vec<u8> = vec!();
-            scores.resize(histmap_reduced.len(), 0u8);
+            type ScoreType = u8;
+            let mut scores: Vec<ScoreType> = vec!();
+            scores.resize(histmap_reduced.len(), 0 as ScoreType);
             for ((index, rect, hist), score) in histmap_reduced.iter().zip(scores.iter_mut())
             {
                 *score = calc_score(hist, &remainder);
@@ -626,13 +643,13 @@ fn things_with_token_map(map: &TokenMap) {
         {
             let token = &histmap_reduced[*index];
             let original_map_token = find_token(token.0, map);
-            println!("search token: {:?}", histmap_reduced[*index]);
+            // println!("search token: {:?}", histmap_reduced[*index]);
             let (index, rect, gray, reduced) = original_map_token;
             let img = image::DynamicImage::ImageLuma8(gray.clone()).to_rgb8();
             // Try to blit the original token onto the image we're drawing on.
             let mut drawable = image_mutable_search.sub_image(std::cmp::min(draw_index as u32, image_mutable.width() - rect.width()), line.top() as u32, rect.width(), rect.height());
             drawable.copy_from(&img, 0, 0);
-            let shifted_rect = Rect::at(draw_index as i32, new_rect.top() + 20).of_size(new_rect.width(), new_rect.height());
+            let shifted_rect = Rect::at(draw_index as i32, new_rect.top()).of_size(new_rect.width(), new_rect.height());
             image_mutable_search = draw_histogram(&image_mutable_search, &shifted_rect, &token.2, Rgb([255u8, 255u8, 0u8]));
             draw_index += reduced.width() as usize;
         }
