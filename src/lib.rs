@@ -456,7 +456,7 @@ fn search_tokens(input: &[u8], map: &HistogramMap) -> (Vec<usize>, u32)
         if counter > limit || fringe.len() > limit
         {
             // println!("Something is bad... {counter}, {}", fringe.len());
-            break;
+            // break;
         }
     }
     // println!("Fringe: {fringe:#?}");
@@ -500,7 +500,7 @@ fn things_with_token_map(map: &TokenMap) {
         .unwrap();
 
     let mut lines = line_splitter(&image);
-    lines = vec!(lines[3]);
+    lines = vec!(lines[2]);
     
     let mut image_line_histogram = image.clone();
     let mut image_mutable = image.clone();
@@ -617,6 +617,7 @@ fn things_with_token_map(map: &TokenMap) {
             }
         }
 
+        println!("sub_image_hist: {sub_image_hist:?}");
         let search_res = search_tokens(&sub_image_hist, &histmap_reduced);
         let (best_path, score) = search_res;
         // Draw the search result...
@@ -625,12 +626,15 @@ fn things_with_token_map(map: &TokenMap) {
         {
             let token = &histmap_reduced[*index];
             let original_map_token = find_token(token.0, map);
+            println!("search token: {:?}", histmap_reduced[*index]);
             let (index, rect, gray, reduced) = original_map_token;
             let img = image::DynamicImage::ImageLuma8(gray.clone()).to_rgb8();
             // Try to blit the original token onto the image we're drawing on.
             let mut drawable = image_mutable_search.sub_image(std::cmp::min(draw_index as u32, image_mutable.width() - rect.width()), line.top() as u32, rect.width(), rect.height());
-            draw_index += reduced.width() as usize;
             drawable.copy_from(&img, 0, 0);
+            let shifted_rect = Rect::at(draw_index as i32, new_rect.top() + 20).of_size(new_rect.width(), new_rect.height());
+            image_mutable_search = draw_histogram(&image_mutable_search, &shifted_rect, &token.2, Rgb([255u8, 255u8, 0u8]));
+            draw_index += reduced.width() as usize;
         }
         println!("search token: {best_path:?} -> {score:?}");
         
