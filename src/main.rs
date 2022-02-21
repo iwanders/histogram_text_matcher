@@ -2,8 +2,6 @@
 
 use image::{open, Rgb, RgbImage};
 
-use imageproc::map::map_colors;
-
 use std::path::Path;
 
 use imageproc::drawing::draw_text_mut;
