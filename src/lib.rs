@@ -496,8 +496,8 @@ fn things_with_token_map(map: &TokenMap) {
     }
     let _ = image.save(Path::new("token_map_reduced.png")).unwrap();
 
-    let path = Path::new("Screenshot167.png");
-    // let path = Path::new("Screenshot169.png");
+    // let path = Path::new("Screenshot167.png");
+    let path = Path::new("Screenshot169_no_inventory.png");
     // let path = Path::new("Screenshot176.png");
     // let path = Path::new("Screenshot014.png");
     // let path = Path::new("z.png");
@@ -551,10 +551,14 @@ fn things_with_token_map(map: &TokenMap) {
         // then match the best letter, pop that letter, advance again.
 
         let use_rows = std::collections::hash_set::HashSet::from([0usize, 1, 2, 3, 4, 5]);
+        // let use_rows = std::collections::hash_set::HashSet::from([6, 7, 8]);
         // 0 and 1 are the big font sizes.
         // 2 is the big numbers
         // 3 and 4 are the smaller font sizes.
         // 5 is small numbers
+        // 6 is tiny caps
+        // 7 is tiny small
+        // 8 is tiny letters and symbols.
 
         // Lets reduce the palette we have to use a bit here.
         let mut histmap_reduced: HistogramMap = vec![];
