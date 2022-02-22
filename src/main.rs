@@ -43,38 +43,10 @@ fn get_relevant_example() {
     let _ = relevant.save("example_canvas_reduced.png").unwrap();
 }
 
-fn draw_font() {
-    // let path = Path::new("result.png");
-    // let mut image = open(path).expect(&format!("Could not load image at {:?}", path)).to_rgb8();
-    let mut image = RgbImage::new(1920, 1080);
 
-    let font = Vec::from(include_bytes!("../priv/font.otf") as &[u8]);
-    let font = Font::try_from_vec(font).unwrap();
-
-    let height = 25.0;
-    let scale = Scale {
-        x: height,
-        y: height,
-    };
-
-    let text = "4605 Gold";
-    draw_text_mut(
-        &mut image,
-        Rgb([238u8, 238u8, 238u8]),
-        826,
-        392,
-        scale,
-        &font,
-        text,
-    );
-
-    let relevant = image_text_matcher::filter_relevant(&image);
-    // let relevant = image;
-    let _ = relevant.save(Path::new("font_render.png")).unwrap();
-}
 
 fn main() {
-    draw_font();
+
     get_relevant();
     get_relevant_font();
     get_relevant_example();
