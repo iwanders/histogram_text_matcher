@@ -113,62 +113,6 @@ pub fn token_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
     res
 }
 
-pub fn line_selector_screenshot() {
-    let path = Path::new("Screenshot167.png");
-    // let path = Path::new("z.png");
-
-    let image = open(path)
-        .expect(&format!("Could not load image at {:?}", path))
-        .to_rgb8();
-    let image = filter_relevant(&image);
-
-    // let mut image = filter_relevant(&image);
-    let filtered = filter_relevant(&image);
-    let _ = filtered
-        .save(Path::new("example_canvas_filtered.png"))
-        .unwrap();
-
-    let lines = line_splitter(&image);
-    // println!("{lines:#?}");
-    let mut image_with_rect = image.clone();
-    for b in lines.iter() {
-        image_with_rect =
-            imageproc::drawing::draw_hollow_rect(&image_with_rect, *b, Rgb([255u8, 0u8, 255u8]));
-    }
-    let _ = image_with_rect
-        .save(Path::new("example_14_lines.png"))
-        .unwrap();
-
-    for b in lines.iter() {
-        let sub_img = image::SubImage::new(
-            &image,
-            b.left() as u32,
-            b.top() as u32,
-            b.width(),
-            b.height(),
-        );
-        let sub_img = sub_img.to_image();
-        let tokens = token_splitter(&sub_img);
-        // println!("{tokens:#?}");
-
-        for z in tokens.iter() {
-            let mut drawable = image::GenericImage::sub_image(
-                &mut image_with_rect,
-                b.left() as u32,
-                b.top() as u32,
-                b.width(),
-                b.height(),
-            );
-            imageproc::drawing::draw_hollow_rect_mut(&mut drawable, *z, Rgb([0u8, 255u8, 255u8]));
-        }
-    }
-    let _ = image_with_rect
-        .save(Path::new("example_14_boxes.png"))
-        .unwrap();
-    // let relevant = image_text_matcher::filter_relevant(&image);
-    // let _ = relevant.save("result_14.png").unwrap();
-}
-
 fn find_token(token: TokenIndex, map: &TokenMap) -> Token {
     for a in map.iter() {
         if a.0 == token {
