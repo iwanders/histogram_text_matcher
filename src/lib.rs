@@ -304,19 +304,7 @@ fn draw_histogram(image: &RgbImage, r: &Rect, hist: &Histogram, color: Rgb<u8>) 
     c
 }
 
-fn calc_score(pattern: &[u8], to_match: &[u8]) -> u8 {
-    let mut res: u8 = 0;
-    let min_width = 4;
-    for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter()) {
-        let a = &(if x_a < pattern.len() {
-            pattern[x_a]
-        } else {
-            0u8
-        });
-        res += if a > b { a - b } else { b - a };
-    }
-    res
-}
+
 
 fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     let mut res: u8 = 0;
@@ -331,19 +319,7 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     res
 }
 
-fn calc_score_normalized(pattern: &[u8], to_match: &[u8]) -> f32 {
-    let mut res: u8 = 0;
-    // let min_width = 4;
-    for (x_a, b) in (0..pattern.len()).zip(to_match.iter()) {
-        let a = &(if x_a < pattern.len() {
-            pattern[x_a]
-        } else {
-            0u8
-        });
-        res += if a > b { a - b } else { b - a };
-    }
-    ((res as f32) / (pattern.len() as f32)) + 0.75 * 0.1 * (10.0 - (pattern.len() as f32))
-}
+
 
 fn things_with_token_map(map: &TokenMap) {
     let reduced_map = crop_token_map(map, true);
