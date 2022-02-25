@@ -1,11 +1,11 @@
 //! An example of drawing text. Writes to the user-provided target file.
 
-use image::{open, Rgb, RgbImage};
+use image::{open};
 
 use std::path::Path;
 
-use imageproc::drawing::draw_text_mut;
-use rusttype::{Font, Scale};
+
+
 
 
 

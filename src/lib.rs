@@ -21,16 +21,22 @@ pub fn grow_rect(r: &Rect) -> Rect {
     .of_size(r.width() + 2, r.height() + 2)
 }
 
-pub fn filter_relevant(image: &RgbImage) -> RgbImage {
-    let _tooltip_border = Rgb([58u8, 58u8, 58u8]);
-    let font_magic = Rgb([100u8, 100u8, 255u8]);
-    let font_unique = Rgb([194u8, 172u8, 109u8]);
-    let font_meta = Rgb([255u8, 255u8, 255u8]);
-    let font_common = Rgb([238u8, 238u8, 238u8]);
-    let font_rune = Rgb([255u8, 160u8, 0u8]);
-    let font_ui_value = Rgb([204u8, 189u8, 110u8]);
-    let font_ui_map = Rgb([192u8, 170u8, 107u8]);
+const _tooltip_border: Rgb<u8> = Rgb([58u8, 58u8, 58u8]);
+const font_ui_value: Rgb<u8> = Rgb([204u8, 189u8, 110u8]);
+const font_ui_map: Rgb<u8> = Rgb([192u8, 170u8, 107u8]);
 
+
+const font_meta: Rgb<u8> = Rgb([255u8, 255u8, 255u8]);
+
+const font_common: Rgb<u8> = Rgb([238u8, 238u8, 238u8]);
+const font_magic: Rgb<u8> = Rgb([100u8, 100u8, 255u8]);
+const font_rare: Rgb<u8> = Rgb([255u8, 255u8, 90u8]);
+const font_unique: Rgb<u8> = Rgb([194u8, 172u8, 109u8]);
+const font_rune: Rgb<u8> = Rgb([255u8, 160u8, 0u8]);
+const font_items: [Rgb<u8>; 5] = [font_common, font_magic, font_rare, font_unique, font_rune];
+
+
+pub fn filter_relevant(image: &RgbImage) -> RgbImage {
     map_colors(image, |p| -> Rgb<u8> {
         match p {
             // _ if p == tooltip_border => tooltip_border,
@@ -41,9 +47,19 @@ pub fn filter_relevant(image: &RgbImage) -> RgbImage {
             _ if p == font_ui_value => font_ui_value,
             _ if p == font_ui_map => font_ui_map,
             _ if p == font_rune => font_rune,
+            _ if p == font_rare => font_rare,
             _ => Rgb([0u8, 0u8, 0u8]),
         }
     })
+}
+
+pub fn get_pixel_optional<C>(image: &C, x: i32, y: i32) -> Option<C::Pixel> where C: GenericImageView
+{
+    if x >= 0 && x < image.width() as i32 && y >= 0 && y < image.height() as i32
+    {
+        return Some(image.get_pixel(x as u32, y as u32));
+    }
+    None
 }
 
 pub fn filter_white(image: &RgbImage) -> RgbImage {
@@ -319,7 +335,96 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     res
 }
 
+fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMap)
+{
+    // Chech line horizontally.
+    // If we encounter a pixel of interest... we figure out where on the line we landed by
+    // searching a up and down for pixels of interest... perhaps also a rectangle?
+    // Lines are pretty tall, with lots of vertical whitespace, so we expand this rectangle
+    // Then continue searching in this direction until we encouter a large block without
+    // color of interest. This spans a rectangle.
+    // When we find the end, we continue with the original search line.
+    // If a search line encounters an already checked rectangle. We will jump over it.
+    let mut boxes : Vec<Rect> = vec!();
 
+    let mut image_debug = image.clone();
+
+    let direction: i32 = 1;
+    let row_step: i32 = 10;
+
+    fn is_relevant(pixel: &Rgb<u8>) -> bool
+    {
+        for v in font_items.iter()
+        {
+            if v == pixel
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    let mut find_box_at = |x: u32, y: u32, img: &mut RgbImage|
+    {
+        // boxes.push(Rect::at(0, 0).of_size(1,1));
+        // Ok, so we know this pixel is a pixel of interest.
+        // We want to find nearby pixels of interest, then expand that region of interest
+        // until we don't find any nearby pixels of interest...
+        // Flood fill out in the 9 pixels around this one.
+        let mut x_min = x;
+        let mut x_max = x;
+        let mut y_min = y;
+        let mut y_max = y;
+        let mut fringe: Vec<_> = vec![(x as i32, y as i32)];
+        let mut visited = std::collections::hash_set::HashSet::from([(x as i32, y as i32)]);
+        while !fringe.is_empty()
+        {
+            let next = fringe.pop().unwrap();
+            for dx in -1i32..=1i32
+            {
+                for dy in -1i32..=1i32
+                {
+                    let new_pos = (next.0 + dx, next.1 + dy);
+
+                    if let Some(p) = get_pixel_optional(image, new_pos.0, new_pos.1)
+                    {
+                        if is_relevant(&p) && !visited.contains(&new_pos)
+                        {
+                            fringe.push(new_pos);
+                            x_min = std::cmp::min(x_min, new_pos.0 as u32);
+                            x_max = std::cmp::max(x_max, new_pos.0 as u32);
+                            y_min = std::cmp::min(y_min, new_pos.1 as u32);
+                            y_max = std::cmp::max(y_max, new_pos.1 as u32);
+                            *img.get_pixel_mut(new_pos.0 as u32, new_pos.1 as u32) = Rgb([255u8, 0u8, 0u8]);
+                        }
+                        visited.insert(new_pos);
+                    }
+                }
+            }
+        }
+    };
+
+    for row in (0..image.height()).step_by(row_step as usize)
+    {
+        let start = if direction > 0 { 0 } else {image.width() as i32};
+        let end = if direction > 0 {image.width() as i32 } else {0};
+        let mut x = start;
+        while x < end
+        {
+            let c = x  as u32;
+            let current = image.get_pixel(c, row);
+            *image_debug.get_pixel_mut(c, row) = Rgb([255u8, 0u8, 255u8]);
+            if is_relevant(current)
+            {
+                find_box_at(c, row, &mut image_debug);
+            }
+            // Check if x is in a box... then advance. Do this here instead of at start of loop
+            // that way we advance if we set a box.
+            x += direction;
+        }
+    }
+    let _ = image_debug.save(Path::new("token_map_image_debug.png")).unwrap();
+}
 
 fn things_with_token_map(map: &TokenMap) {
     let reduced_map = crop_token_map(map, true);
@@ -332,7 +437,7 @@ fn things_with_token_map(map: &TokenMap) {
 
     let hist_map = histogram_token_map(&reduced_map);
 
-    for (i, (index, b, _, _)) in reduced_map.iter().enumerate() {
+    for (i, (index, b, ..)) in reduced_map.iter().enumerate() {
         image =
             imageproc::drawing::draw_hollow_rect(&image, grow_rect(&b), Rgb([255u8, 0u8, 255u8]));
         let hist = &hist_map[i].2;
@@ -341,10 +446,31 @@ fn things_with_token_map(map: &TokenMap) {
     }
     let _ = image.save(Path::new("token_map_reduced.png")).unwrap();
 
+
+
+    let use_rows = std::collections::hash_set::HashSet::from([0usize, 1, 2, 3, 4, 5]);
+    // let use_rows = std::collections::hash_set::HashSet::from([6, 7, 8]);
+    // 0 and 1 are the big font sizes.
+    // 2 is the big numbers
+    // 3 and 4 are the smaller font sizes.
+    // 5 is small numbers
+    // 6 is tiny caps
+    // 7 is tiny small
+    // 8 is tiny letters and symbols.
+
+    // Lets reduce the palette we have to use a bit here.
+    let mut histmap_reduced: HistogramMap = vec![];
+    for z in hist_map.iter() {
+        if use_rows.contains(&z.0 .0) {
+            histmap_reduced.push(z.clone());
+        }
+    }
+
     // let path = Path::new("Screenshot167.png");
-    let path = Path::new("Screenshot169_no_inventory.png");
-    // let path = Path::new("Screenshot176.png");
+    // let path = Path::new("Screenshot169_no_inventory.png");
     // let path = Path::new("Screenshot014.png");
+    let path = Path::new("Screenshot176.png");
+    // let path = Path::new("Screenshot224.png");
     // let path = Path::new("z.png");
 
     let image = open(path)
@@ -358,13 +484,17 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_test_filtered.png"))
         .unwrap();
 
-    let mut lines = line_splitter(&image);
+    alternative_to_line_splitter(&image, &histmap_reduced);
+
+    let lines = line_splitter(&image);
     // lines = vec![lines[1]];
 
     let mut image_line_histogram = image.clone();
     let mut image_mutable = image.clone();
 
     for line in lines {
+        // Now, the problem is reduced to some 1d vectors, and we can just advance to the first non-zero
+        // then match the best letter, pop that letter, advance again.
         // let line = lines[0];
         println!("{line:?}");
         let sub_image = image::SubImage::new(
@@ -392,26 +522,6 @@ fn things_with_token_map(map: &TokenMap) {
             .save(Path::new("token_map_line_histogram.png"))
             .unwrap();
 
-        // Now, the problem is reduced to some 1d vectors, and we can just advance to the first non-zero
-        // then match the best letter, pop that letter, advance again.
-
-        let use_rows = std::collections::hash_set::HashSet::from([0usize, 1, 2, 3, 4, 5]);
-        // let use_rows = std::collections::hash_set::HashSet::from([6, 7, 8]);
-        // 0 and 1 are the big font sizes.
-        // 2 is the big numbers
-        // 3 and 4 are the smaller font sizes.
-        // 5 is small numbers
-        // 6 is tiny caps
-        // 7 is tiny small
-        // 8 is tiny letters and symbols.
-
-        // Lets reduce the palette we have to use a bit here.
-        let mut histmap_reduced: HistogramMap = vec![];
-        for z in hist_map.iter() {
-            if use_rows.contains(&z.0 .0) {
-                histmap_reduced.push(z.clone());
-            }
-        }
         // println!("reduced: {reduced:?}");
         // println!("Image hist: {sub_image_hist:?}");
 
@@ -429,7 +539,7 @@ fn things_with_token_map(map: &TokenMap) {
             type ScoreType = u8;
             let mut scores: Vec<ScoreType> = vec![];
             scores.resize(histmap_reduced.len(), 0 as ScoreType);
-            for ((_index, _rect, hist), score) in histmap_reduced.iter().zip(scores.iter_mut()) {
+            for ((.., hist), score) in histmap_reduced.iter().zip(scores.iter_mut()) {
                 *score = calc_score_min(hist, &remainder, 10);
             }
             // println!("{scores:?}");
@@ -462,15 +572,6 @@ fn things_with_token_map(map: &TokenMap) {
                 );
 
                 drawable.copy_from(&img, 0, 0);
-                // This causes an ICE?
-                // for (x, y, p) in img.enumerate_pixels() {
-                // let scaling = p.0[0] as f32 / 255.0;
-                // let colored_orig = Rgb([(255.0 * scaling) as u8, (255.0 * scaling) as u8, (255.0 * scaling) as u8]);
-                // let v = imageproc::pixelops::interpolate(*drawable.get_pixel_mut(x, y), colored_orig, 0.5);
-                // drawable.get_pixel_mut(x, y) = v;
-                // drawable.get_pixel_mut(x, y) = colored_orig;
-                // };
-
                 i += token.2.len();
             } else {
                 println!("Huh? didn't have a lowest score??");
@@ -482,32 +583,4 @@ fn things_with_token_map(map: &TokenMap) {
     let _ = image_mutable
         .save(Path::new("token_map_line_guessed.png"))
         .unwrap();
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_v() {
-        let full_rejuv_pot_histogram = [
-            // F                                             u
-            2u8, 15, 14, 4, 4, 4, 4, 4, 2, 0, 0, 0, 0, 0, 6, 2, 1, 1, 1, 2, 1, 1, 1, 7, 0, 0, 0, 0,
-            //       l                                       l
-            0, 0, 0, 11, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 11, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0,
-            //                               R
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 14, 2, 2, 2, 3, 3, 4, 1, 1, 0, 0, 0, 0, 0, 0, 1,
-            //e                                        j                           u
-            11, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 6, 2, 1, 1, 1, 2,
-            //                            v
-            1, 1, 1, 7, 0, 0, 0, 0, 0, 0, 2, 2, 2, 1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 1, 11, 3, 3, 3,
-            3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 9, 2, 1, 1, 1, 1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 2, 3, 3,
-            2, 3, 2, 2, 3, 2, 1, 0, 0, 0, 0, 1, 1, 1, 1, 10, 10, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 9,
-            0, 0, 0, 0, 0, 0, 0, 5, 3, 2, 3, 2, 2, 2, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0, 9, 2, 1, 1, 1,
-            1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 14, 2, 0, 0, 2,
-            2, 3, 0, 0, 0, 0, 0, 5, 3, 2, 3, 2, 2, 2, 3, 2, 4, 0, 0, 0, 0, 0, 1, 1, 1, 1, 10, 10,
-            1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 5, 3, 2, 3, 2, 2, 2, 3, 2, 4, 0,
-            0, 0, 0, 0, 0, 0, 9, 2, 1, 1, 1, 1, 1, 2, 9, 0, 0, 0,
-        ];
-
-        let histogram_v = [2u8, 2, 2, 1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, ];
-    }
 }
