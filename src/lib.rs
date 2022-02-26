@@ -407,11 +407,12 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
                         if is_relevant(&p)
                         {
                             fringe.push(new_pos);
+                            // we must contain the interesting pixels, so +1 on the maxes.
                             x_min = std::cmp::min(x_min, new_pos.0 as u32);
-                            x_max = std::cmp::max(x_max, new_pos.0 as u32);
+                            x_max = std::cmp::max(x_max, new_pos.0 as u32 + 1); 
                             y_min = std::cmp::min(y_min, new_pos.1 as u32);
-                            y_max = std::cmp::max(y_max, new_pos.1 as u32);
-                            *img.get_pixel_mut(new_pos.0 as u32, new_pos.1 as u32) = Rgb([255u8, 0u8, 0u8]);
+                            y_max = std::cmp::max(y_max, new_pos.1 as u32 + 1);
+                            // *img.get_pixel_mut(new_pos.0 as u32, new_pos.1 as u32) = Rgb([255u8, 0u8, 0u8]);
                         }
                     }
                     visited.insert(new_pos);
@@ -447,11 +448,14 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
             *image_debug.get_pixel_mut(c, row) = Rgb([255u8, 0u8, 255u8]);
             if is_relevant(current)
             {
+
                 // Check if there's a box here to be found, if there is, advance x to outside of it.
+                let now = Instant::now();
                 if let Some(b) = find_box_at(c, row, &mut image_debug)
                 {
                     boxes.push(b);
                 }
+                // println!("try box: {:.6}", now.elapsed().as_secs_f64());
             }
             // Check if x is in a box... then advance. Do this here instead of at start of loop
             // that way we advance if we set a box.
@@ -463,7 +467,7 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
     for b in boxes.iter() {
         image_debug =
             imageproc::drawing::draw_hollow_rect(&image_debug, grow_rect(&b), Rgb([0u8, 255u8, 255u8]));
-
+        println!("{b:?}");
     }
     let _ = image_debug.save(Path::new("token_map_image_debug_boxed.png")).unwrap();
 
@@ -530,10 +534,11 @@ fn things_with_token_map(map: &TokenMap) {
 
     let now = Instant::now();
     alternative_to_line_splitter(&image, &histmap_reduced);
-    println!("{:.2}", now.elapsed().as_secs_f64());
-    return;
+    println!("Alternative {:.6}", now.elapsed().as_secs_f64());
 
+    let now = Instant::now();
     let lines = line_splitter(&image);
+    println!("line splitter {:.6}", now.elapsed().as_secs_f64());
     // lines = vec![lines[1]];
 
     let mut image_line_histogram = image.clone();
