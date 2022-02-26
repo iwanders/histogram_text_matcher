@@ -345,6 +345,13 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
     // color of interest. This spans a rectangle.
     // When we find the end, we continue with the original search line.
     // If a search line encounters an already checked rectangle. We will jump over it.
+
+    // We could also just use a box to search... 8 x 20, centered around current pixel of
+    // interest.
+
+    // Spaces are larger than inter-item distance... 
+    
+
     let mut boxes : Vec<Rect> = vec!();
 
     let mut image_debug = image.clone();
@@ -376,19 +383,26 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         let mut y_min = y;
         let mut y_max = y;
         let mut fringe: Vec<_> = vec![(x as i32, y as i32)];
-        let mut visited = std::collections::hash_set::HashSet::from([(x as i32, y as i32)]);
+        let mut visited = std::collections::hash_set::HashSet::<(i32, i32)>::new();
+
+        
+
         while !fringe.is_empty()
         {
             let next = fringe.pop().unwrap();
-            for dx in -1i32..=1i32
+            for dx in -12i32..=12i32
             {
-                for dy in -1i32..=1i32
+                for dy in -4i32..=4i32
                 {
                     let new_pos = (next.0 + dx, next.1 + dy);
+                    if visited.contains(&new_pos)
+                    {
+                        continue;
+                    }
 
                     if let Some(p) = get_pixel_optional(image, new_pos.0, new_pos.1)
                     {
-                        if is_relevant(&p) && !visited.contains(&new_pos)
+                        if is_relevant(&p)
                         {
                             fringe.push(new_pos);
                             x_min = std::cmp::min(x_min, new_pos.0 as u32);
@@ -401,6 +415,12 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
                     }
                 }
             }
+        }
+        let w = x_max - x_min;
+        let h = y_max - y_min;
+        if w > 0 && h > 0
+        {
+            boxes.push(Rect::at(x_min as i32, y_min as i32).of_size(w, h));
         }
     };
 
@@ -424,6 +444,15 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         }
     }
     let _ = image_debug.save(Path::new("token_map_image_debug.png")).unwrap();
+
+    for b in boxes.iter() {
+        image_debug =
+            imageproc::drawing::draw_hollow_rect(&image_debug, grow_rect(&b), Rgb([0u8, 255u8, 255u8]));
+
+    }
+    let _ = image_debug.save(Path::new("token_map_image_debug_boxed.png")).unwrap();
+
+
 }
 
 fn things_with_token_map(map: &TokenMap) {
@@ -466,10 +495,10 @@ fn things_with_token_map(map: &TokenMap) {
         }
     }
 
-    // let path = Path::new("Screenshot167.png");
+    let path = Path::new("Screenshot167.png");
     // let path = Path::new("Screenshot169_no_inventory.png");
     // let path = Path::new("Screenshot014.png");
-    let path = Path::new("Screenshot176.png");
+    // let path = Path::new("Screenshot176.png");
     // let path = Path::new("Screenshot224.png");
     // let path = Path::new("z.png");
 
