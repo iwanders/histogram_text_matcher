@@ -1,8 +1,10 @@
 use image::imageops::colorops::grayscale;
 use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
-
+use imageproc::rect::Region;
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
+
+use std::time::{Duration, Instant};
 
 use std::path::Path;
 
@@ -371,7 +373,7 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         return false;
     }
 
-    let mut find_box_at = |x: u32, y: u32, img: &mut RgbImage|
+    let mut find_box_at = |x: u32, y: u32, img: &mut RgbImage| -> Option<Rect>
     {
         // boxes.push(Rect::at(0, 0).of_size(1,1));
         // Ok, so we know this pixel is a pixel of interest.
@@ -411,8 +413,8 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
                             y_max = std::cmp::max(y_max, new_pos.1 as u32);
                             *img.get_pixel_mut(new_pos.0 as u32, new_pos.1 as u32) = Rgb([255u8, 0u8, 0u8]);
                         }
-                        visited.insert(new_pos);
                     }
+                    visited.insert(new_pos);
                 }
             }
         }
@@ -420,8 +422,10 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         let h = y_max - y_min;
         if w > 0 && h > 0
         {
-            boxes.push(Rect::at(x_min as i32, y_min as i32).of_size(w, h));
+            let result = Rect::at(x_min as i32, y_min as i32).of_size(w, h);
+            return Some(result);
         }
+        None
     };
 
     for row in (0..image.height()).step_by(row_step as usize)
@@ -431,12 +435,23 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         let mut x = start;
         while x < end
         {
-            let c = x  as u32;
+            for b in boxes.iter()
+            {
+                if b.contains(x, row as i32)
+                {
+                    x = std::cmp::max(x, b.left() + b.width() as i32);
+                }
+            }
+            let c = x as u32;
             let current = image.get_pixel(c, row);
             *image_debug.get_pixel_mut(c, row) = Rgb([255u8, 0u8, 255u8]);
             if is_relevant(current)
             {
-                find_box_at(c, row, &mut image_debug);
+                // Check if there's a box here to be found, if there is, advance x to outside of it.
+                if let Some(b) = find_box_at(c, row, &mut image_debug)
+                {
+                    boxes.push(b);
+                }
             }
             // Check if x is in a box... then advance. Do this here instead of at start of loop
             // that way we advance if we set a box.
@@ -513,7 +528,10 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_test_filtered.png"))
         .unwrap();
 
+    let now = Instant::now();
     alternative_to_line_splitter(&image, &histmap_reduced);
+    println!("{:.2}", now.elapsed().as_secs_f64());
+    return;
 
     let lines = line_splitter(&image);
     // lines = vec![lines[1]];
