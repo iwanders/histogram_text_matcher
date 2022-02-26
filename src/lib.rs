@@ -514,10 +514,10 @@ fn things_with_token_map(map: &TokenMap) {
         }
     }
 
-    let path = Path::new("Screenshot167.png");
+    // let path = Path::new("Screenshot167.png");
     // let path = Path::new("Screenshot169_no_inventory.png");
     // let path = Path::new("Screenshot014.png");
-    // let path = Path::new("Screenshot176.png");
+    let path = Path::new("Screenshot176.png");
     // let path = Path::new("Screenshot224.png");
     // let path = Path::new("z.png");
 
@@ -558,6 +558,8 @@ fn things_with_token_map(map: &TokenMap) {
         );
         let new_rect =
             Rect::at(line.left() as i32, line.top() as i32).of_size(line.width(), line.height());
+        image_line_histogram =
+            imageproc::drawing::draw_hollow_rect(&image_line_histogram, grow_rect(&line), Rgb([255u8, 0u8, 255u8]));
 
         let _sub_image_mut = sub_image.to_image();
 
