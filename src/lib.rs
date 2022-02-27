@@ -592,7 +592,7 @@ fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap,
     let v = hist;
     let mut i: usize = 0;
     let mut correct_matches = vec!();
-    let mut total_score = 0;
+    let mut total_score: u32 = 0;
     while i < v.len() - 1 {
         if v[i] == 0 {
             i += 1;
@@ -621,7 +621,7 @@ fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap,
         if let Some(best) = index_of_min {
             let token = &histmap_reduced[best];
             let score = scores[best];
-            total_score += score;
+            total_score += score as u32;
             if (score > 0)
             {
                 // Eliminate this block.
@@ -715,7 +715,7 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
     let histmap_reduced = reduce_map(&map);
     for y in 1..(image.height() - window_size)
     {
-        // let mut image_mutable_z = image.clone();
+        let mut image_mutable_z = image.clone();
         // Do things with the current histogram.
         // Render the histogram to a single entity.
         
@@ -727,8 +727,8 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
         }
         //token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
         token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable);
-        // token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable_z);
-        // let _ = image_mutable_z.save(Path::new(format!("/tmp/{:0>4}_token_map_moving_histogram_matches.png", y).as_str())).unwrap();
+        token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable_z);
+        let _ = image_mutable_z.save(Path::new(format!("/tmp/{:0>4}_token_map_moving_histogram_matches.png", y).as_str())).unwrap();
 
         // Subtract from the side moving out of the histogram.
         for x in 0..image.width() {
@@ -794,11 +794,11 @@ fn things_with_token_map(map: &TokenMap) {
 
     let histmap_reduced = reduce_map(&map);
 
-    let path = Path::new("Screenshot167.png"); // non-aligned lines
+    // let path = Path::new("Screenshot167.png"); // non-aligned lines
     // let path = Path::new("Screenshot169_no_inventory.png");
     // let path = Path::new("Screenshot014.png");
     // let path = Path::new("Screenshot176.png");
-    // let path = Path::new("Screenshot224.png"); // non-aligned lines
+    let path = Path::new("Screenshot224.png"); // non-aligned lines
     // let path = Path::new("z.png");
 
     let image = open(path)
