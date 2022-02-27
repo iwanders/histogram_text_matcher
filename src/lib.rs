@@ -529,6 +529,228 @@ fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histma
     }
 }
 
+#[derive(Default, Debug, Copy, Clone)]
+struct Bin
+{
+    font_common: u8,
+    font_magic: u8,
+    font_rare: u8,
+    font_unique: u8,
+    font_rune: u8,
+}
+impl Bin {
+    fn add_common(&mut self)
+    {
+        self.font_common += 1;
+    }
+    fn sub_common(&mut self)
+    {
+        self.font_common = self.font_common.saturating_sub(1);
+    }
+    fn add_magic(&mut self)
+    {
+        self.font_magic += 1;
+    }
+    fn sub_magic(&mut self)
+    {
+        self.font_magic = self.font_magic.saturating_sub(1);
+    }
+    fn add_rare(&mut self)
+    {
+        self.font_rare += 1;
+    }
+    fn sub_rare(&mut self)
+    {
+        self.font_rare = self.font_rare.saturating_sub(1);
+    }
+    fn add_unique(&mut self)
+    {
+        self.font_unique += 1;
+    }
+    fn sub_unique(&mut self)
+    {
+        self.font_unique = self.font_unique.saturating_sub(1);
+    }
+    fn add_rune(&mut self)
+    {
+        self.font_rune += 1;
+    }
+    fn sub_rune(&mut self)
+    {
+        self.font_rune = self.font_rune.saturating_sub(1);
+    }
+}
+
+
+
+fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
+{
+    let v = hist;
+    let mut i: usize = 0;
+    while i < v.len() - 1 {
+        if v[i] == 0 {
+            i += 1;
+            continue;
+        }
+
+        // v[i] is now the first non-zero entry.
+        let remainder = &v[i..];
+
+        type ScoreType = u8;
+        let mut scores: Vec<ScoreType> = vec![];
+        scores.resize(histmap_reduced.len(), 0 as ScoreType);
+        for ((.., hist), score) in histmap_reduced.iter().zip(scores.iter_mut()) {
+            *score = calc_score_min(hist, &remainder, 10);
+        }
+        // println!("{scores:?}");
+
+        // The lowest score is the best match, (the least difference)...
+        // https://stackoverflow.com/a/53908709
+        let index_of_min: Option<usize> = scores
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index);
+
+        if let Some(best) = index_of_min {
+            let token = &histmap_reduced[best];
+            let score = scores[best];
+            if (score > 0)
+            {
+                // Eliminate this block.
+                while v[i] != 0 {
+                    i += 1;
+                }
+                continue;
+            }
+
+            // sub_image_mut =
+            //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
+            let original_map_token = find_token(token.0, map);
+
+            let (_index, rect, gray, _reduced) = original_map_token;
+            let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
+            // Try to blit the original token onto the image we're drawing on.
+            let mut drawable = image_mutable.sub_image(
+                i as u32,
+                y_offset,
+                rect.width(),
+                rect.height(),
+            );
+
+            drawable.copy_from(&img, 0, 0);
+            i += token.2.len();
+        } else {
+            println!("Huh? didn't have a lowest score??");
+            i += 1;
+        }
+    }
+}
+
+fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
+{
+    let mut image_mutable = image.clone();
+    // const font_common: Rgb<u8> = Rgb([238u8, 238u8, 238u8]);
+    // const font_magic: Rgb<u8> = Rgb([100u8, 100u8, 255u8]);
+    // const font_rare: Rgb<u8> = Rgb([255u8, 255u8, 90u8]);
+    // const font_unique: Rgb<u8> = Rgb([194u8, 172u8, 109u8]);
+    // const font_rune: Rgb<u8> = Rgb([255u8, 160u8, 0u8]);
+
+    let mut histogram: Vec<Bin> = Vec::<Bin>::new();
+    histogram.resize(image.width() as usize, Default::default());
+    let window_size = 18;
+
+    // Start at the top, with zero width, then we sum rows for the window size
+    // Then, we iterate down, at the bottom of the window add to the histogram
+    // and the top row that moves out we subtract.
+
+    fn add_pixel(x: usize, p: &Rgb<u8>, histogram: &mut Vec<Bin>)
+    {
+        match p {
+            _ if p == &font_common => {histogram[x as usize].add_common()},
+            _ if p == &font_magic => {histogram[x as usize].add_magic()},
+            _ if p == &font_rare => {histogram[x as usize].add_rare()},
+            _ if p == &font_unique => {histogram[x as usize].add_unique()},
+            _ if p == &font_rune => {histogram[x as usize].add_rune()},
+            _ => {}
+        }
+    }
+
+    fn sub_pixel(x: usize, p: &Rgb<u8>, histogram: &mut Vec<Bin>)
+    {
+        match p {
+            _ if p == &font_common => {histogram[x as usize].sub_common()},
+            _ if p == &font_magic => {histogram[x as usize].sub_magic()},
+            _ if p == &font_rare => {histogram[x as usize].sub_rare()},
+            _ if p == &font_unique => {histogram[x as usize].sub_unique()},
+            _ if p == &font_rune => {histogram[x as usize].sub_rune()},
+            _ => {}
+        }
+    }
+
+    // Let us first, setup the first histogram, this is from 0 to histogram size.
+    for y in 0..window_size {
+        for x in 0..image.width() {
+            let p = image.get_pixel(x, y);
+            add_pixel(x as usize, p, &mut histogram);
+        }
+    }
+
+    let histmap_reduced = reduce_map(&map);
+    for y in 1..(image.height() - window_size)
+    {
+        // Do things with the current histogram.
+        // Render the histogram to a single entity.
+        
+        //fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
+        let mut single_hist : Vec<u8> = vec!();
+        single_hist.resize(image.width() as usize, 0);
+        for x in 0..image.width() {
+            single_hist[x as usize] = histogram[x as usize].font_common;
+        }
+        //token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
+        token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable);
+
+        // Subtract from the side moving out of the histogram.
+        for x in 0..image.width() {
+            let p = image.get_pixel(x, y);
+            sub_pixel(x as usize, p, &mut histogram);
+        }
+
+        // Add the side moving into the histogram.
+        for x in 0..image.width() {
+            let p = image.get_pixel(x, y + window_size);
+            add_pixel(x as usize, p, &mut histogram);
+        }
+    }
+
+    let _ = image_mutable.save(Path::new("token_map_moving_histogram_matches.png")).unwrap();
+}
+
+fn reduce_map(map: &TokenMap) -> HistogramMap
+{
+
+    let reduced_map = crop_token_map(map, true);
+    let hist_map = histogram_token_map(&reduced_map);
+    let use_rows = std::collections::hash_set::HashSet::from([0usize, 1, 2, 3, 4, 5]);
+    // let use_rows = std::collections::hash_set::HashSet::from([6, 7, 8]);
+    // 0 and 1 are the big font sizes.
+    // 2 is the big numbers
+    // 3 and 4 are the smaller font sizes.
+    // 5 is small numbers
+    // 6 is tiny caps
+    // 7 is tiny small
+    // 8 is tiny letters and symbols.
+
+    // Lets reduce the palette we have to use a bit here.
+    let mut histmap_reduced: HistogramMap = vec![];
+    for z in hist_map.iter() {
+        if use_rows.contains(&z.0 .0) {
+            histmap_reduced.push(z.clone());
+        }
+    }
+    histmap_reduced
+}
 
 fn things_with_token_map(map: &TokenMap) {
     let reduced_map = crop_token_map(map, true);
@@ -551,30 +773,13 @@ fn things_with_token_map(map: &TokenMap) {
     let _ = image.save(Path::new("token_map_reduced.png")).unwrap();
 
 
+    let histmap_reduced = reduce_map(&map);
 
-    let use_rows = std::collections::hash_set::HashSet::from([0usize, 1, 2, 3, 4, 5]);
-    // let use_rows = std::collections::hash_set::HashSet::from([6, 7, 8]);
-    // 0 and 1 are the big font sizes.
-    // 2 is the big numbers
-    // 3 and 4 are the smaller font sizes.
-    // 5 is small numbers
-    // 6 is tiny caps
-    // 7 is tiny small
-    // 8 is tiny letters and symbols.
-
-    // Lets reduce the palette we have to use a bit here.
-    let mut histmap_reduced: HistogramMap = vec![];
-    for z in hist_map.iter() {
-        if use_rows.contains(&z.0 .0) {
-            histmap_reduced.push(z.clone());
-        }
-    }
-
-    // let path = Path::new("Screenshot167.png");
+    let path = Path::new("Screenshot167.png"); // non-aligned lines
     // let path = Path::new("Screenshot169_no_inventory.png");
     // let path = Path::new("Screenshot014.png");
-    let path = Path::new("Screenshot176.png");
-    // let path = Path::new("Screenshot224.png");
+    // let path = Path::new("Screenshot176.png");
+    // let path = Path::new("Screenshot224.png"); // non-aligned lines
     // let path = Path::new("z.png");
 
     let image = open(path)
@@ -591,6 +796,10 @@ fn things_with_token_map(map: &TokenMap) {
     // let now = Instant::now();
     // alternative_to_line_splitter(&image, &histmap_reduced);
     // println!("Alternative {:.6}", now.elapsed().as_secs_f64());
+
+    let now = Instant::now();
+    moving_windowed_histogram(&image, &map);
+    println!("moving_windowed_histogram {:.6}", now.elapsed().as_secs_f64());
 
     let now = Instant::now();
     let lines = line_splitter(&image);
@@ -637,7 +846,6 @@ fn things_with_token_map(map: &TokenMap) {
 
         let v = sub_image_hist.clone();
         token_histogram_matcher(line.top() as u32, &v, &map, &histmap_reduced, &mut image_mutable);
-        
     }
 
     let _ = image_mutable
