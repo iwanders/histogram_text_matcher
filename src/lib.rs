@@ -470,9 +470,65 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         println!("{b:?}");
     }
     let _ = image_debug.save(Path::new("token_map_image_debug_boxed.png")).unwrap();
-
-
 }
+
+fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
+{
+    let v = hist;
+    let mut i: usize = 0;
+    while i < v.len() - 1 {
+        if v[i] == 0 {
+            i += 1;
+            continue;
+        }
+
+        // v[i] is now the first non-zero entry.
+        let remainder = &v[i..];
+
+        type ScoreType = u8;
+        let mut scores: Vec<ScoreType> = vec![];
+        scores.resize(histmap_reduced.len(), 0 as ScoreType);
+        for ((.., hist), score) in histmap_reduced.iter().zip(scores.iter_mut()) {
+            *score = calc_score_min(hist, &remainder, 10);
+        }
+        // println!("{scores:?}");
+
+        // The lowest score is the best match, (the least difference)...
+        // https://stackoverflow.com/a/53908709
+        let index_of_min: Option<usize> = scores
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index);
+
+        if let Some(best) = index_of_min {
+            let token = &histmap_reduced[best];
+            let score = scores[best];
+            println!("Found {best}, with {score} -> {token:?}");
+
+            // sub_image_mut =
+            //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
+            let original_map_token = find_token(token.0, map);
+
+            let (_index, rect, gray, _reduced) = original_map_token;
+            let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
+            // Try to blit the original token onto the image we're drawing on.
+            let mut drawable = image_mutable.sub_image(
+                i as u32,
+                y_offset,
+                rect.width(),
+                rect.height(),
+            );
+
+            drawable.copy_from(&img, 0, 0);
+            i += token.2.len();
+        } else {
+            println!("Huh? didn't have a lowest score??");
+            i += 1;
+        }
+    }
+}
+
 
 fn things_with_token_map(map: &TokenMap) {
     let reduced_map = crop_token_map(map, true);
@@ -532,9 +588,9 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_test_filtered.png"))
         .unwrap();
 
-    let now = Instant::now();
-    alternative_to_line_splitter(&image, &histmap_reduced);
-    println!("Alternative {:.6}", now.elapsed().as_secs_f64());
+    // let now = Instant::now();
+    // alternative_to_line_splitter(&image, &histmap_reduced);
+    // println!("Alternative {:.6}", now.elapsed().as_secs_f64());
 
     let now = Instant::now();
     let lines = line_splitter(&image);
@@ -580,58 +636,8 @@ fn things_with_token_map(map: &TokenMap) {
         // println!("Image hist: {sub_image_hist:?}");
 
         let v = sub_image_hist.clone();
-        let mut i: usize = 0;
-        while i < v.len() - 1 {
-            if v[i] == 0 {
-                i += 1;
-                continue;
-            }
-
-            // v[i] is now the first non-zero entry.
-            let remainder = &v[i..];
-
-            type ScoreType = u8;
-            let mut scores: Vec<ScoreType> = vec![];
-            scores.resize(histmap_reduced.len(), 0 as ScoreType);
-            for ((.., hist), score) in histmap_reduced.iter().zip(scores.iter_mut()) {
-                *score = calc_score_min(hist, &remainder, 10);
-            }
-            // println!("{scores:?}");
-
-            // The lowest score is the best match, (the least difference)...
-            // https://stackoverflow.com/a/53908709
-            let index_of_min: Option<usize> = scores
-                .iter()
-                .enumerate()
-                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                .map(|(index, _)| index);
-
-            if let Some(best) = index_of_min {
-                let token = &histmap_reduced[best];
-                let score = scores[best];
-                println!("Found {best}, with {score} -> {token:?}");
-
-                // sub_image_mut =
-                //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
-                let original_map_token = find_token(token.0, map);
-
-                let (_index, rect, gray, _reduced) = original_map_token;
-                let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
-                // Try to blit the original token onto the image we're drawing on.
-                let mut drawable = image_mutable.sub_image(
-                    i as u32,
-                    line.top() as u32,
-                    rect.width(),
-                    rect.height(),
-                );
-
-                drawable.copy_from(&img, 0, 0);
-                i += token.2.len();
-            } else {
-                println!("Huh? didn't have a lowest score??");
-                i += 1;
-            }
-        }
+        token_histogram_matcher(line.top() as u32, &v, &map, &histmap_reduced, &mut image_mutable);
+        
     }
 
     let _ = image_mutable
