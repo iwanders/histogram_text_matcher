@@ -8,11 +8,11 @@ use std::time::{Duration, Instant};
 
 use std::path::Path;
 
-type TokenIndex = (usize, usize);
-type Token = (TokenIndex, Rect, image::GrayImage, image::GrayImage);
-type TokenMap = Vec<Token>;
 
-type Histogram = Vec<u8>;
+mod dev_util;
+use dev_util::*;
+
+
 type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 
 pub fn grow_rect(r: &Rect) -> Rect {
@@ -64,72 +64,6 @@ pub fn get_pixel_optional<C>(image: &C, x: i32, y: i32) -> Option<C::Pixel> wher
     None
 }
 
-pub fn filter_white(image: &RgbImage) -> RgbImage {
-    let white = Rgb([255u8, 255u8, 255u8]);
-
-    map_colors(image, |p| -> Rgb<u8> {
-        match p {
-            _ if p == white => white,
-            _ => Rgb([0u8, 0u8, 0u8]),
-        }
-    })
-}
-
-pub fn line_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
-    // let gray = DynamicImage::ImageRgb8(*image).into_luma8();
-    let gray = grayscale(image);
-    let height = image.height();
-
-    let mut start: Option<u32> = None;
-
-    let mut res: Vec<imageproc::rect::Rect> = vec![];
-
-    for r in 0..height {
-        let sum = (0..image.width())
-            .map(|v| gray.get_pixel(v, r))
-            .fold(0u32, |a, b| a + ((*b).0[0] as u32));
-        let something = sum != 0;
-
-        if start.is_none() && something {
-            // start of new row.
-            start = Some(r);
-        } else if start.is_some() && !something {
-            let begin_pos = start.unwrap();
-            // finalize
-            res.push(Rect::at(0, begin_pos as i32).of_size(image.width(), r - begin_pos));
-            start = None;
-        }
-    }
-    res
-}
-
-pub fn token_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
-    // let gray = DynamicImage::ImageRgb8(*image).into_luma8();
-    let gray = grayscale(image);
-    let width = image.width();
-
-    let mut start: Option<u32> = None;
-
-    let mut res: Vec<imageproc::rect::Rect> = vec![];
-
-    for c in 0..width {
-        let sum = (0..image.height())
-            .map(|v| gray.get_pixel(c, v))
-            .fold(0u32, |a, b| a + ((*b).0[0] as u32));
-        let something = sum != 0;
-
-        if start.is_none() && something {
-            // start of new row.
-            start = Some(c);
-        } else if start.is_some() && !something {
-            let begin_pos = start.unwrap();
-            // finalize
-            res.push(Rect::at(begin_pos as i32, 0).of_size(c - begin_pos, image.height()));
-            start = None;
-        }
-    }
-    res
-}
 
 fn find_token(token: TokenIndex, map: &TokenMap) -> Token {
     for a in map.iter() {
@@ -288,19 +222,6 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap {
     output
 }
 
-fn image_to_histogram(image: &image::GrayImage) -> Histogram {
-    let mut hist: Histogram = vec![];
-    for x in 0..image.width() {
-        let mut s: u8 = 0;
-        for y in 0..image.height() {
-            if image.get_pixel(x, y).0[0] != 0u8 {
-                s += 1;
-            }
-        }
-        hist.push(s)
-    }
-    hist
-}
 
 fn histogram_token_map(map: &TokenMap) -> HistogramMap {
     let mut res: HistogramMap = vec![];
@@ -309,17 +230,6 @@ fn histogram_token_map(map: &TokenMap) -> HistogramMap {
         res.push((*pos, *input_rect, hist));
     }
     res
-}
-
-fn draw_histogram(image: &RgbImage, r: &Rect, hist: &Histogram, color: Rgb<u8>) -> RgbImage {
-    let mut c = image.clone();
-    for x in 0..hist.len() {
-        let img_x = r.left() as u32 + x as u32;
-        for y in 0..hist[x] {
-            *(c.get_pixel_mut(img_x, r.bottom() as u32 - (y as u32))) = color;
-        }
-    }
-    c
 }
 
 
@@ -715,7 +625,7 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
     let histmap_reduced = reduce_map(&map);
     for y in 1..(image.height() - window_size)
     {
-        let mut image_mutable_z = image.clone();
+        // let mut image_mutable_z = image.clone();
         // Do things with the current histogram.
         // Render the histogram to a single entity.
         
@@ -727,8 +637,8 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
         }
         //token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
         token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable);
-        token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable_z);
-        let _ = image_mutable_z.save(Path::new(format!("/tmp/{:0>4}_token_map_moving_histogram_matches.png", y).as_str())).unwrap();
+        // token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable_z);
+        // let _ = image_mutable_z.save(Path::new(format!("/tmp/{:0>4}_token_map_moving_histogram_matches.png", y).as_str())).unwrap();
 
         // Subtract from the side moving out of the histogram.
         for x in 0..image.width() {
