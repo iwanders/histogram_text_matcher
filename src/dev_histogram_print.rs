@@ -28,7 +28,7 @@ fn main() {
         .save(Path::new("dev_histogram_filter_white.png"))
         .unwrap();
 
-    let lines = line_splitter(&filtered);
+    let lines = line_splitter(&image);
 
 
     let image_with_rect = image.clone();
@@ -66,7 +66,7 @@ fn main() {
             let sub_img_gray = image::DynamicImage::ImageRgb8(filtered_token.to_image()).into_luma8();
             let sub_img_histogram = image_to_histogram(&sub_img_gray);
 
-            println!("{r},{c} -> {sub_img_histogram:?}");
+            println!("{{\"str\": \"{r}-{c}\", \"hist\": {sub_img_histogram:?}}},");
 
             let mut drawable = image::GenericImage::sub_image(
                 &mut image_with_rect,
