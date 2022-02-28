@@ -59,7 +59,7 @@ fn main() {
             let filtered_token = image::GenericImageView::view(
                 &filtered,
                 z.left() as u32,
-                z.top() as u32,
+                b.top() as u32,
                 z.width(),
                 z.height(),
             );
