@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut image = RgbImage::new(100, glyph_set.entries.len() as u32 * line_height);
 
-    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf") as &[u8]);
+    let font = std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
     let font = Font::try_from_vec(font).unwrap();
 
     let height = 10.0;
