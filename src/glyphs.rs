@@ -3,16 +3,15 @@ use serde_json;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Glyph {
-    hist: Vec<u8>,
-    letter: char,
-    baseline: i8,
+    pub hist: Vec<u8>,
+    pub glyph: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct GlyphSet {
-    entires: Vec<Glyph>,
-    line_height: u8,
-    name: String,
+    pub entries: Vec<Glyph>,
+    pub line_height: u8,
+    pub name: String,
 }
 
 pub fn load_glyph_set(path: &str) -> Result<GlyphSet, Box<dyn std::error::Error>> {

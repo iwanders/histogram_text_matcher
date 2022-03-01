@@ -21,3 +21,7 @@ serde_json = "1.0"
 [[example]]
 name = "dev_histogram_print"
 path = "src/dev_histogram_print.rs"
+
+[[example]]
+name = "dev_glyph_set_print"
+path = "src/dev_glyph_set_print.rs"
