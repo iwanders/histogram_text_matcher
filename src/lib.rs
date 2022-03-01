@@ -242,7 +242,6 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     res
 }
 
-
 fn token_histogram_matcher(
     y_offset: u32,
     hist: &Vec<u8>,
