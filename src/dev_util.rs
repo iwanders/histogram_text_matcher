@@ -1,13 +1,9 @@
-
-
-use std::path::Path;
 use image::imageops::colorops::grayscale;
 use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
-use imageproc::rect::Region;
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
-
-
+use imageproc::rect::Region;
+use std::path::Path;
 
 pub type Histogram = Vec<u8>;
 
@@ -80,7 +76,6 @@ pub fn token_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
     res
 }
 
-
 pub fn image_to_histogram(image: &image::GrayImage) -> Histogram {
     let mut hist: Histogram = vec![];
     for x in 0..image.width() {
@@ -106,8 +101,14 @@ pub fn draw_histogram(image: &RgbImage, r: &Rect, hist: &Histogram, color: Rgb<u
     c
 }
 
-
-pub fn draw_histogram_mut_xy_a(image: &mut image::RgbImage, left: u32, bottom: u32, hist: &Histogram, color: Rgb<u8>, alpha: f32)  {
+pub fn draw_histogram_mut_xy_a(
+    image: &mut image::RgbImage,
+    left: u32,
+    bottom: u32,
+    hist: &Histogram,
+    color: Rgb<u8>,
+    alpha: f32,
+) {
     for x in 0..hist.len() {
         let img_x = left + x as u32;
         for y in 0..hist[x] {

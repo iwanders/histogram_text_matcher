@@ -1,17 +1,18 @@
 use image::imageops::colorops::grayscale;
 use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
-use imageproc::rect::Region;
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
+use imageproc::rect::Region;
 
 use std::time::{Duration, Instant};
 
 use std::path::Path;
 
-
 mod dev_util;
 use dev_util::*;
 
+mod glyphs;
+pub use glyphs::*;
 
 type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 
@@ -27,7 +28,6 @@ const _tooltip_border: Rgb<u8> = Rgb([58u8, 58u8, 58u8]);
 const font_ui_value: Rgb<u8> = Rgb([204u8, 189u8, 110u8]);
 const font_ui_map: Rgb<u8> = Rgb([192u8, 170u8, 107u8]);
 
-
 const font_meta: Rgb<u8> = Rgb([255u8, 255u8, 255u8]);
 
 const font_common: Rgb<u8> = Rgb([238u8, 238u8, 238u8]);
@@ -36,7 +36,6 @@ const font_rare: Rgb<u8> = Rgb([255u8, 255u8, 90u8]);
 const font_unique: Rgb<u8> = Rgb([194u8, 172u8, 109u8]);
 const font_rune: Rgb<u8> = Rgb([255u8, 160u8, 0u8]);
 const font_items: [Rgb<u8>; 5] = [font_common, font_magic, font_rare, font_unique, font_rune];
-
 
 pub fn filter_relevant(image: &RgbImage) -> RgbImage {
     map_colors(image, |p| -> Rgb<u8> {
@@ -55,15 +54,15 @@ pub fn filter_relevant(image: &RgbImage) -> RgbImage {
     })
 }
 
-pub fn get_pixel_optional<C>(image: &C, x: i32, y: i32) -> Option<C::Pixel> where C: GenericImageView
+pub fn get_pixel_optional<C>(image: &C, x: i32, y: i32) -> Option<C::Pixel>
+where
+    C: GenericImageView,
 {
-    if x >= 0 && x < image.width() as i32 && y >= 0 && y < image.height() as i32
-    {
+    if x >= 0 && x < image.width() as i32 && y >= 0 && y < image.height() as i32 {
         return Some(image.get_pixel(x as u32, y as u32));
     }
     None
 }
-
 
 fn find_token(token: TokenIndex, map: &TokenMap) -> Token {
     for a in map.iter() {
@@ -157,7 +156,6 @@ pub fn manipulate_canvas() {
         .save(Path::new("example_canvas_boxes.png"))
         .unwrap();
 
-
     // Actually, we only need lines, and the token map.
     things_with_token_map(&token_map);
 }
@@ -222,7 +220,6 @@ fn crop_token_map(map: &TokenMap, only_width: bool) -> TokenMap {
     output
 }
 
-
 fn histogram_token_map(map: &TokenMap) -> HistogramMap {
     let mut res: HistogramMap = vec![];
     for (pos, input_rect, _image, image_filtered) in map {
@@ -231,8 +228,6 @@ fn histogram_token_map(map: &TokenMap) -> HistogramMap {
     }
     res
 }
-
-
 
 fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     let mut res: u8 = 0;
@@ -247,8 +242,7 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     res
 }
 
-fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMap)
-{
+fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMap) {
     // Chech line horizontally.
     // If we encounter a pixel of interest... we figure out where on the line we landed by
     // searching a up and down for pixels of interest... perhaps also a rectangle?
@@ -261,30 +255,25 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
     // We could also just use a box to search... 8 x 20, centered around current pixel of
     // interest.
 
-    // Spaces are larger than inter-item distance... 
-    
+    // Spaces are larger than inter-item distance...
 
-    let mut boxes : Vec<Rect> = vec!();
+    let mut boxes: Vec<Rect> = vec![];
 
     let mut image_debug = image.clone();
 
     let direction: i32 = 1;
     let row_step: i32 = 10;
 
-    fn is_relevant(pixel: &Rgb<u8>) -> bool
-    {
-        for v in font_items.iter()
-        {
-            if v == pixel
-            {
+    fn is_relevant(pixel: &Rgb<u8>) -> bool {
+        for v in font_items.iter() {
+            if v == pixel {
                 return true;
             }
         }
         return false;
     }
 
-    let mut find_box_at = |x: u32, y: u32, img: &mut RgbImage| -> Option<Rect>
-    {
+    let mut find_box_at = |x: u32, y: u32, img: &mut RgbImage| -> Option<Rect> {
         // boxes.push(Rect::at(0, 0).of_size(1,1));
         // Ok, so we know this pixel is a pixel of interest.
         // We want to find nearby pixels of interest, then expand that region of interest
@@ -297,29 +286,21 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         let mut fringe: Vec<_> = vec![(x as i32, y as i32)];
         let mut visited = std::collections::hash_set::HashSet::<(i32, i32)>::new();
 
-        
-
-        while !fringe.is_empty()
-        {
+        while !fringe.is_empty() {
             let next = fringe.pop().unwrap();
-            for dx in -12i32..=12i32
-            {
-                for dy in -4i32..=4i32
-                {
+            for dx in -12i32..=12i32 {
+                for dy in -4i32..=4i32 {
                     let new_pos = (next.0 + dx, next.1 + dy);
-                    if visited.contains(&new_pos)
-                    {
+                    if visited.contains(&new_pos) {
                         continue;
                     }
 
-                    if let Some(p) = get_pixel_optional(image, new_pos.0, new_pos.1)
-                    {
-                        if is_relevant(&p)
-                        {
+                    if let Some(p) = get_pixel_optional(image, new_pos.0, new_pos.1) {
+                        if is_relevant(&p) {
                             fringe.push(new_pos);
                             // we must contain the interesting pixels, so +1 on the maxes.
                             x_min = std::cmp::min(x_min, new_pos.0 as u32);
-                            x_max = std::cmp::max(x_max, new_pos.0 as u32 + 1); 
+                            x_max = std::cmp::max(x_max, new_pos.0 as u32 + 1);
                             y_min = std::cmp::min(y_min, new_pos.1 as u32);
                             y_max = std::cmp::max(y_max, new_pos.1 as u32 + 1);
                             // *img.get_pixel_mut(new_pos.0 as u32, new_pos.1 as u32) = Rgb([255u8, 0u8, 0u8]);
@@ -331,38 +312,38 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
         }
         let w = x_max - x_min;
         let h = y_max - y_min;
-        if w > 0 && h > 0
-        {
+        if w > 0 && h > 0 {
             let result = Rect::at(x_min as i32, y_min as i32).of_size(w, h);
             return Some(result);
         }
         None
     };
 
-    for row in (0..image.height()).step_by(row_step as usize)
-    {
-        let start = if direction > 0 { 0 } else {image.width() as i32};
-        let end = if direction > 0 {image.width() as i32 } else {0};
+    for row in (0..image.height()).step_by(row_step as usize) {
+        let start = if direction > 0 {
+            0
+        } else {
+            image.width() as i32
+        };
+        let end = if direction > 0 {
+            image.width() as i32
+        } else {
+            0
+        };
         let mut x = start;
-        while x < end
-        {
-            for b in boxes.iter()
-            {
-                if b.contains(x, row as i32)
-                {
+        while x < end {
+            for b in boxes.iter() {
+                if b.contains(x, row as i32) {
                     x = std::cmp::max(x, b.left() + b.width() as i32);
                 }
             }
             let c = x as u32;
             let current = image.get_pixel(c, row);
             *image_debug.get_pixel_mut(c, row) = Rgb([255u8, 0u8, 255u8]);
-            if is_relevant(current)
-            {
-
+            if is_relevant(current) {
                 // Check if there's a box here to be found, if there is, advance x to outside of it.
                 let now = Instant::now();
-                if let Some(b) = find_box_at(c, row, &mut image_debug)
-                {
+                if let Some(b) = find_box_at(c, row, &mut image_debug) {
                     boxes.push(b);
                 }
                 // println!("try box: {:.6}", now.elapsed().as_secs_f64());
@@ -372,18 +353,30 @@ fn alternative_to_line_splitter(image: &RgbImage, _histmap_reduced: &HistogramMa
             x += direction;
         }
     }
-    let _ = image_debug.save(Path::new("token_map_image_debug.png")).unwrap();
+    let _ = image_debug
+        .save(Path::new("token_map_image_debug.png"))
+        .unwrap();
 
     for b in boxes.iter() {
-        image_debug =
-            imageproc::drawing::draw_hollow_rect(&image_debug, grow_rect(&b), Rgb([0u8, 255u8, 255u8]));
+        image_debug = imageproc::drawing::draw_hollow_rect(
+            &image_debug,
+            grow_rect(&b),
+            Rgb([0u8, 255u8, 255u8]),
+        );
         println!("{b:?}");
     }
-    let _ = image_debug.save(Path::new("token_map_image_debug_boxed.png")).unwrap();
+    let _ = image_debug
+        .save(Path::new("token_map_image_debug_boxed.png"))
+        .unwrap();
 }
 
-fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
-{
+fn token_histogram_matcher(
+    y_offset: u32,
+    hist: &Vec<u8>,
+    map: &TokenMap,
+    histmap_reduced: &HistogramMap,
+    image_mutable: &mut RgbImage,
+) {
     let v = hist;
     let mut i: usize = 0;
     while i < v.len() - 1 {
@@ -423,12 +416,8 @@ fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histma
             let (_index, rect, gray, _reduced) = original_map_token;
             let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
             // Try to blit the original token onto the image we're drawing on.
-            let mut drawable = image_mutable.sub_image(
-                i as u32,
-                y_offset,
-                rect.width(),
-                rect.height(),
-            );
+            let mut drawable =
+                image_mutable.sub_image(i as u32, y_offset, rect.width(), rect.height());
 
             drawable.copy_from(&img, 0, 0);
             i += token.2.len();
@@ -440,8 +429,7 @@ fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histma
 }
 
 #[derive(Default, Debug, Copy, Clone)]
-struct Bin
-{
+struct Bin {
     font_common: u8,
     font_magic: u8,
     font_rare: u8,
@@ -449,59 +437,51 @@ struct Bin
     font_rune: u8,
 }
 impl Bin {
-    fn add_common(&mut self)
-    {
+    fn add_common(&mut self) {
         self.font_common += 1;
     }
-    fn sub_common(&mut self)
-    {
+    fn sub_common(&mut self) {
         self.font_common = self.font_common.saturating_sub(1);
     }
-    fn add_magic(&mut self)
-    {
+    fn add_magic(&mut self) {
         self.font_magic += 1;
     }
-    fn sub_magic(&mut self)
-    {
+    fn sub_magic(&mut self) {
         self.font_magic = self.font_magic.saturating_sub(1);
     }
-    fn add_rare(&mut self)
-    {
+    fn add_rare(&mut self) {
         self.font_rare += 1;
     }
-    fn sub_rare(&mut self)
-    {
+    fn sub_rare(&mut self) {
         self.font_rare = self.font_rare.saturating_sub(1);
     }
-    fn add_unique(&mut self)
-    {
+    fn add_unique(&mut self) {
         self.font_unique += 1;
     }
-    fn sub_unique(&mut self)
-    {
+    fn sub_unique(&mut self) {
         self.font_unique = self.font_unique.saturating_sub(1);
     }
-    fn add_rune(&mut self)
-    {
+    fn add_rune(&mut self) {
         self.font_rune += 1;
     }
-    fn sub_rune(&mut self)
-    {
+    fn sub_rune(&mut self) {
         self.font_rune = self.font_rune.saturating_sub(1);
     }
-    fn total(&self) -> u8
-    {
+    fn total(&self) -> u8 {
         self.font_common + self.font_magic + self.font_rare + self.font_unique + self.font_rune
     }
 }
 
-
-
-fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
-{
+fn token_binned_histogram_matcher(
+    y_offset: u32,
+    hist: &Vec<u8>,
+    map: &TokenMap,
+    histmap_reduced: &HistogramMap,
+    image_mutable: &mut RgbImage,
+) {
     let v = hist;
     let mut i: usize = 0;
-    let mut correct_matches = vec!();
+    let mut correct_matches = vec![];
     let mut total_score: u32 = 0;
     while i < v.len() - 1 {
         if v[i] == 0 {
@@ -532,8 +512,7 @@ fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap,
             let token = &histmap_reduced[best];
             let score = scores[best];
             total_score += score as u32;
-            if (score > 0)
-            {
+            if (score > 0) {
                 // Eliminate this block.
                 while v[i] != 0 {
                     i += 1;
@@ -549,12 +528,10 @@ fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap,
             i += 1;
         }
     }
-    if (correct_matches.len() < 5) || (total_score as f32 / (correct_matches.len()  as f32)) > 1.5
-    {
-        return
+    if (correct_matches.len() < 5) || (total_score as f32 / (correct_matches.len() as f32)) > 1.5 {
+        return;
     }
-    for (token, i) in correct_matches
-    {
+    for (token, i) in correct_matches {
         // sub_image_mut =
         //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
         let original_map_token = find_token(token.0, map);
@@ -562,19 +539,13 @@ fn token_binned_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap,
         let (_index, rect, gray, _reduced) = original_map_token;
         let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
         // Try to blit the original token onto the image we're drawing on.
-        let mut drawable = image_mutable.sub_image(
-            i as u32,
-            y_offset,
-            rect.width(),
-            rect.height(),
-        );
+        let mut drawable = image_mutable.sub_image(i as u32, y_offset, rect.width(), rect.height());
 
         drawable.copy_from(&img, 0, 0);
     }
 }
 
-fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
-{
+fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap) {
     let mut image_mutable = image.clone();
     // const font_common: Rgb<u8> = Rgb([238u8, 238u8, 238u8]);
     // const font_magic: Rgb<u8> = Rgb([100u8, 100u8, 255u8]);
@@ -590,26 +561,24 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
     // Then, we iterate down, at the bottom of the window add to the histogram
     // and the top row that moves out we subtract.
 
-    fn add_pixel(x: usize, p: &Rgb<u8>, histogram: &mut Vec<Bin>)
-    {
+    fn add_pixel(x: usize, p: &Rgb<u8>, histogram: &mut Vec<Bin>) {
         match p {
-            _ if p == &font_common => {histogram[x as usize].add_common()},
-            _ if p == &font_magic => {histogram[x as usize].add_magic()},
-            _ if p == &font_rare => {histogram[x as usize].add_rare()},
-            _ if p == &font_unique => {histogram[x as usize].add_unique()},
-            _ if p == &font_rune => {histogram[x as usize].add_rune()},
+            _ if p == &font_common => histogram[x as usize].add_common(),
+            _ if p == &font_magic => histogram[x as usize].add_magic(),
+            _ if p == &font_rare => histogram[x as usize].add_rare(),
+            _ if p == &font_unique => histogram[x as usize].add_unique(),
+            _ if p == &font_rune => histogram[x as usize].add_rune(),
             _ => {}
         }
     }
 
-    fn sub_pixel(x: usize, p: &Rgb<u8>, histogram: &mut Vec<Bin>)
-    {
+    fn sub_pixel(x: usize, p: &Rgb<u8>, histogram: &mut Vec<Bin>) {
         match p {
-            _ if p == &font_common => {histogram[x as usize].sub_common()},
-            _ if p == &font_magic => {histogram[x as usize].sub_magic()},
-            _ if p == &font_rare => {histogram[x as usize].sub_rare()},
-            _ if p == &font_unique => {histogram[x as usize].sub_unique()},
-            _ if p == &font_rune => {histogram[x as usize].sub_rune()},
+            _ if p == &font_common => histogram[x as usize].sub_common(),
+            _ if p == &font_magic => histogram[x as usize].sub_magic(),
+            _ if p == &font_rare => histogram[x as usize].sub_rare(),
+            _ if p == &font_unique => histogram[x as usize].sub_unique(),
+            _ if p == &font_rune => histogram[x as usize].sub_rune(),
             _ => {}
         }
     }
@@ -623,14 +592,13 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
     }
 
     let histmap_reduced = reduce_map(&map);
-    for y in 1..(image.height() - window_size)
-    {
+    for y in 1..(image.height() - window_size) {
         // let mut image_mutable_z = image.clone();
         // Do things with the current histogram.
         // Render the histogram to a single entity.
-        
+
         //fn token_histogram_matcher(y_offset: u32, hist: &Vec<u8>, map: &TokenMap, histmap_reduced: &HistogramMap, image_mutable: &mut RgbImage)
-        let mut single_hist : Vec<u8> = vec!();
+        let mut single_hist: Vec<u8> = vec![];
         single_hist.resize(image.width() as usize, 0);
         for x in 0..image.width() {
             single_hist[x as usize] = histogram[x as usize].total();
@@ -653,12 +621,12 @@ fn moving_windowed_histogram(image: &RgbImage, map: &TokenMap)
         }
     }
 
-    let _ = image_mutable.save(Path::new("token_map_moving_histogram_matches.png")).unwrap();
+    let _ = image_mutable
+        .save(Path::new("token_map_moving_histogram_matches.png"))
+        .unwrap();
 }
 
-fn reduce_map(map: &TokenMap) -> HistogramMap
-{
-
+fn reduce_map(map: &TokenMap) -> HistogramMap {
     let reduced_map = crop_token_map(map, true);
     let hist_map = histogram_token_map(&reduced_map);
     let use_rows = std::collections::hash_set::HashSet::from([0usize, 1, 2, 3, 4, 5]);
@@ -701,7 +669,6 @@ fn things_with_token_map(map: &TokenMap) {
     }
     let _ = image.save(Path::new("token_map_reduced.png")).unwrap();
 
-
     let histmap_reduced = reduce_map(&map);
 
     // let path = Path::new("Screenshot167.png"); // non-aligned lines
@@ -709,7 +676,7 @@ fn things_with_token_map(map: &TokenMap) {
     // let path = Path::new("Screenshot014.png");
     // let path = Path::new("Screenshot176.png");
     let path = Path::new("Screenshot224.png"); // non-aligned lines
-    // let path = Path::new("z.png");
+                                               // let path = Path::new("z.png");
 
     let image = open(path)
         .expect(&format!("Could not load image at {:?}", path))
@@ -728,7 +695,10 @@ fn things_with_token_map(map: &TokenMap) {
 
     let now = Instant::now();
     moving_windowed_histogram(&image, &map);
-    println!("moving_windowed_histogram {:.6}", now.elapsed().as_secs_f64());
+    println!(
+        "moving_windowed_histogram {:.6}",
+        now.elapsed().as_secs_f64()
+    );
 
     let now = Instant::now();
     let lines = line_splitter(&image);
@@ -752,8 +722,11 @@ fn things_with_token_map(map: &TokenMap) {
         );
         let new_rect =
             Rect::at(line.left() as i32, line.top() as i32).of_size(line.width(), line.height());
-        image_line_histogram =
-            imageproc::drawing::draw_hollow_rect(&image_line_histogram, grow_rect(&line), Rgb([255u8, 0u8, 255u8]));
+        image_line_histogram = imageproc::drawing::draw_hollow_rect(
+            &image_line_histogram,
+            grow_rect(&line),
+            Rgb([255u8, 0u8, 255u8]),
+        );
 
         let _sub_image_mut = sub_image.to_image();
 
@@ -774,7 +747,13 @@ fn things_with_token_map(map: &TokenMap) {
         // println!("Image hist: {sub_image_hist:?}");
 
         let v = sub_image_hist.clone();
-        token_histogram_matcher(line.top() as u32, &v, &map, &histmap_reduced, &mut image_mutable);
+        token_histogram_matcher(
+            line.top() as u32,
+            &v,
+            &map,
+            &histmap_reduced,
+            &mut image_mutable,
+        );
     }
 
     let _ = image_mutable
