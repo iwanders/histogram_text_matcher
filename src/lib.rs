@@ -1,21 +1,21 @@
-use image::imageops::colorops::grayscale;
-use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
-use imageproc::map::map_colors;
-use imageproc::rect::Rect;
-use imageproc::rect::Region;
+// use image::imageops::colorops::grayscale;
+// use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
+// use imageproc::map::map_colors;
+// use imageproc::rect::Rect;
+// use imageproc::rect::Region;
 
 use std::time::{Duration, Instant};
 
 use std::path::Path;
 
-mod dev_util;
-use dev_util::*;
+// mod dev_util;
+// use dev_util::*;
 
 mod glyphs;
 pub use glyphs::*;
 
-type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
-
+// type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
+/*
 pub fn grow_rect(r: &Rect) -> Rect {
     Rect::at(
         std::cmp::max(r.left() - 1, 0),
@@ -632,3 +632,4 @@ fn things_with_token_map(map: &TokenMap) {
         .save(Path::new("token_map_line_guessed.png"))
         .unwrap();
 }
+*/

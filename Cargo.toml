@@ -25,3 +25,7 @@ path = "src/dev_histogram_print.rs"
 [[example]]
 name = "dev_glyph_set_print"
 path = "src/dev_glyph_set_print.rs"
+
+[[example]]
+name = "dev_example_glyphs"
+path = "src/dev_example_glyphs.rs"
