@@ -1,8 +1,7 @@
 use image::open;
 use std::path::Path;
 
-mod dev_util;
-use dev_util::*;
+use image_text_matcher::image_support::*;
 
 fn main() {
     let file_path = std::env::args()
@@ -24,7 +23,7 @@ fn main() {
     let image = open(path)
         .expect(&format!("Could not load image at {:?}", path))
         .to_rgb8();
-    let glyph_set = dev_analyse_glyphs(&image, only_line);
+    let glyph_set = dev_image_to_glyph_set(&image, only_line);
     let j = serde_json::to_string(&glyph_set).expect("Will succeed.");
     println!("{j}");
 }

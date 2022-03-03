@@ -15,9 +15,9 @@ pub struct GlyphSet {
 }
 
 pub fn load_glyph_set(path: &str) -> Result<GlyphSet, Box<dyn std::error::Error>> {
-    use std::path::{Path, PathBuf};
+    use std::path::{PathBuf};
     let path = PathBuf::from(path);
-    let res: GlyphSet;
+    let _res: GlyphSet;
     use std::fs::File;
     use std::io::Read;
     let mut file = File::open(path)?;

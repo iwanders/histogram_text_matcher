@@ -10,22 +10,29 @@ opt-level=3
 incremental=true
 
 [dependencies]
-imageproc = "0.22.0"
-image = { version = "0.23.6"}
-rusttype = "0.9.2"
+imageproc = {version = "0.22.0", optional=true}
+image = { version = "0.23.6", optional=true}
+rusttype = { version = "0.9.2", optional=true}
 
 #
 serde = {version="1.0", features = ["derive"] }
 serde_json = "1.0"
 
+
+[features]
+image-support = ["imageproc", "image", "rusttype"]
+
 [[example]]
-name = "dev_histogram_print"
-path = "src/dev_histogram_print.rs"
+name = "dev_image_to_glyph_set"
+path = "src/dev_image_to_glyph_set.rs"
+required-features = ["image-support"]
 
 [[example]]
 name = "dev_glyph_set_print"
 path = "src/dev_glyph_set_print.rs"
+required-features = ["image-support"]
 
 [[example]]
 name = "dev_example_glyphs"
 path = "src/dev_example_glyphs.rs"
+required-features = ["image-support"]

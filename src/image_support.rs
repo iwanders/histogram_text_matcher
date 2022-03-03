@@ -1,8 +1,8 @@
 use image::imageops::colorops::grayscale;
-use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
+use image::{GenericImage, GenericImageView, Rgb, RgbImage};
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
-use imageproc::rect::Region;
+
 use std::path::Path;
 
 use imageproc::drawing::draw_text_mut;
@@ -12,10 +12,6 @@ use rusttype::{Font, Scale};
 use image_text_matcher::{Glyph, GlyphSet};
 
 pub type Histogram = Vec<u8>;
-
-pub type TokenIndex = (usize, usize);
-pub type Token = (TokenIndex, Rect, image::GrayImage, image::GrayImage);
-pub type TokenMap = Vec<Token>;
 
 pub fn filter_white(image: &RgbImage) -> RgbImage {
     let white = Rgb([255u8, 255u8, 255u8]);
@@ -170,7 +166,7 @@ pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error
 }
 
 /// Something that analyses an image with glyphs on it, creating the glyphset with histograms.
-pub fn dev_analyse_glyphs(image: &RgbImage, only_line: Option<usize>) -> GlyphSet {
+pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> GlyphSet {
     let mut result: GlyphSet = Default::default();
 
     let filtered = filter_white(image);
@@ -236,7 +232,7 @@ pub fn dev_analyse_glyphs(image: &RgbImage, only_line: Option<usize>) -> GlyphSe
                 0.5,
             );
 
-            let global_rect =
+            let _global_rect =
                 Rect::at(b.left() + z.left(), b.top() + z.top()).of_size(z.width(), z.height());
 
             result.entries.push(Glyph {

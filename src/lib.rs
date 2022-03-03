@@ -4,10 +4,10 @@
 // use imageproc::rect::Rect;
 // use imageproc::rect::Region;
 
-use std::time::{Duration, Instant};
 
-use std::path::Path;
 
+#[cfg(feature="image-support")]
+pub mod image_support;
 // mod dev_util;
 // use dev_util::*;
 
