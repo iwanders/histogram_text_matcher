@@ -1,7 +1,9 @@
 
 mod glyphs;
 
-use image_text_matcher::image_support::*;
+mod dev_util;
+use dev_util::*;
+
 
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;

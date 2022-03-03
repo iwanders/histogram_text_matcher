@@ -1,7 +1,8 @@
 use image::open;
 use std::path::Path;
 
-use image_text_matcher::image_support::*;
+mod dev_util;
+use dev_util::*;
 
 fn main() {
     let file_path = std::env::args()
