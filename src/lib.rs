@@ -12,6 +12,9 @@
 mod glyphs;
 pub use glyphs::*;
 
+mod interface;
+pub use interface::*;
+
 // type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 /*
 pub fn grow_rect(r: &Rect) -> Rect {

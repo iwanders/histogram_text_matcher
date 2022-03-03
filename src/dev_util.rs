@@ -246,3 +246,13 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
         .unwrap();
     result
 }
+
+
+pub fn dev_histogram_on_image() -> Result<(), Box<dyn std::error::Error>> {
+    let image = dev_create_example_glyphs()?;
+    let z = image_text_matcher::ImageBufferView::<_>::from_raw_ref(image.width(), image.height(), image.as_raw());
+    use image_text_matcher::Image;
+    let p = z.pixel(27, 45);
+    println!("{p:?}");
+    Ok(())
+}
