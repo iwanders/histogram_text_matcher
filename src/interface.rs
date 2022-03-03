@@ -1,4 +1,3 @@
-use std::ops::Deref;
 
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 /// Struct to represent a single pixel.
@@ -15,6 +14,13 @@ impl From<u8> for RGB {
     }
 }
 
+impl From<&[u8]> for RGB {
+    fn from(v: &[u8]) -> Self {
+        assert!(v.len() == 3, "Slice must have three values for rgb conversion.");
+        RGB { r: v[0], g: v[1], b: v[2]}
+    }
+}
+
 
 pub trait Image
 {
@@ -27,27 +33,25 @@ pub trait Image
 }
 
 /// A view into a consecutive slice of pixel-esque things, like `image::ImageBuffer::as_raw`
-pub struct ImageBufferView<'a , Container>
+pub struct ImageBufferView<'a, Container:?Sized, const PIXEL_SIZE: usize>
 {
     data: &'a Container,
     width: u32,
     height: u32,
-    // stride: usize,
 }
 
-impl<Container> ImageBufferView<'_, Container> where
-    Container: Deref<Target = [u8]>
+impl<'a, Container:?Sized, const PIXEL_SIZE: usize> ImageBufferView<'a, Container, PIXEL_SIZE>
 {
-    pub fn from_raw_ref(width: u32, height: u32, data: &Container) -> ImageBufferView<'_, Container>
+    pub fn from_raw_ref(width: u32, height: u32, data: &'a Container) -> ImageBufferView<'a, Container, PIXEL_SIZE>
     {
-        ImageBufferView{data , width, height}
+        ImageBufferView::<'a, Container, PIXEL_SIZE>{data , width, height}
     }
 }
 
-impl<'a, Container> Image for ImageBufferView<'a, Container> where
-    Container: std::ops::Index<usize>,
+impl<'a, Container:?Sized, const PIXEL_SIZE: usize> Image for ImageBufferView<'a, Container, PIXEL_SIZE> where
+    Container: std::ops::Index<usize> + std::ops::Index<std::ops::Range<usize>>,
     <Container as std::ops::Index<usize>>::Output: Copy + Sized,
-    RGB: From<<Container as std::ops::Index<usize>>::Output>
+    RGB: From<&'a <Container as std::ops::Index<std::ops::Range<usize>>>::Output>
 {
     fn width(&self) -> u32
     {
@@ -59,6 +63,13 @@ impl<'a, Container> Image for ImageBufferView<'a, Container> where
     }
     fn pixel(&self, x: u32, y: u32) -> RGB
     {
-        self.data[(y * self.width + x) as usize].into()
+        let s = (y * self.width + x) as usize * PIXEL_SIZE;
+        let e = (y * self.width + x + 1) as usize * PIXEL_SIZE;
+        self.data[s..e].into()
     }
+}
+
+pub fn image_buffer_view_rgb<'a>(width: u32, height: u32, data: &'a [u8]) -> ImageBufferView<'a, [u8], 3>
+{
+    ImageBufferView::<'a, [u8], 3>{data , width, height}
 }
