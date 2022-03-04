@@ -1,9 +1,7 @@
-
 mod glyphs;
 
-mod dev_util;
-use dev_util::*;
-
+mod dev_lib;
+use dev_lib::*;
 
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;

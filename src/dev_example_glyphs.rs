@@ -1,6 +1,5 @@
-
-mod dev_util;
-use dev_util::*;
+mod dev_lib;
+use dev_lib::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let image = dev_create_example_glyphs()?;

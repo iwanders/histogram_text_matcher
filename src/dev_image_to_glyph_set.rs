@@ -1,8 +1,8 @@
 use image::open;
 use std::path::Path;
 
-mod dev_util;
-use dev_util::*;
+mod dev_lib;
+use dev_lib::*;
 
 fn main() {
     let file_path = std::env::args()
