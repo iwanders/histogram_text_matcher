@@ -26,6 +26,17 @@ pub struct GlyphSet {
     pub name: String,
 }
 
+/// String whitespace from a glyph set.
+pub fn strip_glyph_set(set: &GlyphSet) -> GlyphSet
+{
+    let mut res = set.clone();
+    for glyph in res.entries.iter_mut()
+    {
+        glyph.hist = glyph.hist.drain(..).filter(|x| { *x != 0 }).collect::<Vec<u8>>();
+    }
+    res
+}
+
 /// Load a glyph set from a json file.
 pub fn load_glyph_set(path: &str) -> Result<GlyphSet, Box<dyn std::error::Error>> {
     use std::path::PathBuf;

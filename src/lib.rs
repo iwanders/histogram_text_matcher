@@ -31,6 +31,64 @@ fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
     res
 }
 
+
+fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
+    let mut res: u8 = 0;
+    for (x_a, b) in (0..std::cmp::max(pattern.len(), min_width)).zip(to_match.iter()) {
+        let a = &(if x_a < pattern.len() {
+            pattern[x_a]
+        } else {
+            0u8
+        });
+        res += if a > b { a - b } else { b - a };
+    }
+    res
+}
+
+fn histogram_glyph_matcher(
+    histogram: &Vec<u8>,
+    set: &glyphs::GlyphSet
+) {
+    let v = histogram;
+    let mut i: usize = 0;
+    while i < v.len() - 1 {
+        if v[i] == 0 {
+            i += 1;
+            continue;
+        }
+        // v[i] is now the first non-zero entry.
+        let remainder = &v[i..];
+
+        type ScoreType = u8;
+        let mut scores: Vec<ScoreType> = vec![];
+        scores.resize(set.entries.len(), 0 as ScoreType);
+        for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
+            *score = calc_score_min(&glyph.hist, &remainder, 10);
+        }
+        // println!("{scores:?}");
+
+        // The lowest score is the best match, (the least difference)...
+        // https://stackoverflow.com/a/53908709
+        let index_of_min: Option<usize> = scores
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index);
+
+        if let Some(best) = index_of_min {
+            let token = &set.entries[best];
+            let score = scores[best];
+            println!("Found {best}, with {score} -> {token:?}");
+
+            i += token.hist.len();
+        } else {
+            println!("Huh? didn't have a lowest score??");
+            i += 1;
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,7 +98,12 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
+        let glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        let trimmed_set = glyphs::strip_glyph_set(&glyph_set);
+
         println!("Histogram: {hist:?}");
+
+        let res = histogram_glyph_matcher(&hist, &trimmed_set);
     }
 }
 
@@ -270,64 +333,6 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
         res += if a > b { a - b } else { b - a };
     }
     res
-}
-
-fn token_histogram_matcher(
-    y_offset: u32,
-    hist: &Vec<u8>,
-    map: &TokenMap,
-    histmap_reduced: &HistogramMap,
-    image_mutable: &mut RgbImage,
-) {
-    let v = hist;
-    let mut i: usize = 0;
-    while i < v.len() - 1 {
-        if v[i] == 0 {
-            i += 1;
-            continue;
-        }
-
-        // v[i] is now the first non-zero entry.
-        let remainder = &v[i..];
-
-        type ScoreType = u8;
-        let mut scores: Vec<ScoreType> = vec![];
-        scores.resize(histmap_reduced.len(), 0 as ScoreType);
-        for ((.., hist), score) in histmap_reduced.iter().zip(scores.iter_mut()) {
-            *score = calc_score_min(hist, &remainder, 10);
-        }
-        // println!("{scores:?}");
-
-        // The lowest score is the best match, (the least difference)...
-        // https://stackoverflow.com/a/53908709
-        let index_of_min: Option<usize> = scores
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, _)| index);
-
-        if let Some(best) = index_of_min {
-            let token = &histmap_reduced[best];
-            let score = scores[best];
-            println!("Found {best}, with {score} -> {token:?}");
-
-            // sub_image_mut =
-            //fn find_token(token: TokenIndex, map: &TokenMap) -> Token
-            let original_map_token = find_token(token.0, map);
-
-            let (_index, rect, gray, _reduced) = original_map_token;
-            let img = image::DynamicImage::ImageLuma8(gray).to_rgb8();
-            // Try to blit the original token onto the image we're drawing on.
-            let mut drawable =
-                image_mutable.sub_image(i as u32, y_offset, rect.width(), rect.height());
-
-            drawable.copy_from(&img, 0, 0);
-            i += token.2.len();
-        } else {
-            println!("Huh? didn't have a lowest score??");
-            i += 1;
-        }
-    }
 }
 
 #[derive(Default, Debug, Copy, Clone)]

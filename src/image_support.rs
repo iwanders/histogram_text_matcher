@@ -152,8 +152,8 @@ pub fn draw_histogram_mut_xy_a(
 
 /// Something that creates a dummy glyph image.
 pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error>> {
-    let font_size = 30.0;
-    let symbols = vec!['a', 'b', 'c', 'z'];
+    let font_size = 40.0;
+    let symbols = vec!['a', 'b', 'e', 'z'];
 
     let mut drawables = vec![];
     for (i, z) in symbols.iter().enumerate() {
