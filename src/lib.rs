@@ -46,7 +46,7 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
 }
 
 fn histogram_glyph_matcher(
-    histogram: &Vec<u8>,
+    histogram: &[u8],
     set: &glyphs::GlyphSet
 ) {
     let v = histogram;
@@ -84,6 +84,78 @@ fn histogram_glyph_matcher(
         } else {
             println!("Huh? didn't have a lowest score??");
             i += 1;
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Default)]
+struct Bin
+{
+    count: u32,
+    label: usize,
+}
+
+type ColorLabel = (RGB, usize);
+
+fn moving_windowed_histogram(
+    image: &dyn Image,
+    set: &glyphs::GlyphSet,
+    labels: &[ColorLabel]) {
+
+
+    let mut histogram: Vec<Bin> = Vec::<Bin>::new();
+    histogram.resize(image.width() as usize, Default::default());
+    let window_size = set.line_height as u32;
+
+    // Start at the top, with zero width, then we sum rows for the window size
+    // Then, we iterate down, at the bottom of the window add to the histogram
+    // and the top row that moves out we subtract.
+
+    fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
+        for (color, index) in labels.iter()
+        {
+            if color == p
+            {
+                histogram[x].count += 1;
+                histogram[x].label = *index;
+            }
+        }
+    }
+
+    fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
+        for (ref color, index) in labels.iter()
+        {
+            if color == p
+            {
+                histogram[x].count = histogram[x].count.saturating_sub(1);
+            }
+        }
+    }
+
+    // Let us first, setup the first histogram, this is from 0 to window size.
+    for y in 0..window_size {
+        for x in 0..image.width() {
+            let p = image.pixel(x, y);
+            add_pixel(x as usize, &p, labels, &mut histogram);
+        }
+    }
+
+    for y in 1..((image.height() - window_size) as u32) {
+        // Here, we match the current histogram, and store matches.
+        // token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable);
+
+
+        // Subtract from the side moving out of the histogram.
+        for x in 0..image.width() {
+            let p = image.pixel(x, y);
+            sub_pixel(x as usize, &p, labels, &mut histogram);
+        }
+
+        // Add the side moving into the histogram.
+        for x in 0..image.width() {
+            let p = image.pixel(x, y + window_size);
+            add_pixel(x as usize, &p, labels, &mut histogram);
         }
     }
 }
