@@ -9,24 +9,22 @@ pub mod glyphs;
 mod interface;
 pub use interface::*;
 
+/// Type to hold a simple 1D histogram.
 pub type SimpleHistogram = Vec<u8>;
 
 // This here ensures that we have image support when the feature is enabled, but also for all tests.
-#[cfg(feature="image_support")]
+#[cfg(feature = "image_support")]
 pub mod image_support;
 #[cfg(test)]
 pub mod image_support;
 
 
-
-fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram
-{
-    let mut res : SimpleHistogram = SimpleHistogram::new();
+/// Function to match a single color in an image and convert this to a histogram.
+fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
+    let mut res: SimpleHistogram = SimpleHistogram::new();
     res.resize(image.width() as usize, 0);
-    for y in 0..image.height()
-    {
-        for x in 0..image.width()
-        {
+    for y in 0..image.height() {
+        for x in 0..image.width() {
             res[x as usize] += if image.pixel(x, y) == color { 1 } else { 0 };
         }
     }
@@ -45,7 +43,6 @@ mod tests {
         println!("Histogram: {hist:?}");
     }
 }
-
 
 // type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 /*

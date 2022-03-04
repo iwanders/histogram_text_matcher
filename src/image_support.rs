@@ -1,3 +1,4 @@
+//! Functionality for the image_support feature
 use image::imageops::colorops::grayscale;
 use image::{GenericImage, GenericImageView, Rgb, RgbImage};
 use imageproc::map::map_colors;
@@ -14,15 +15,13 @@ pub use crate::SimpleHistogram as Histogram;
 
 impl From<&Rgb<u8>> for crate::RGB {
     fn from(v: &Rgb<u8>) -> Self {
-            return crate::RGB {
-                r: v[0],
-                g: v[1],
-                b: v[2],
-            };
-
+        return crate::RGB {
+            r: v[0],
+            g: v[1],
+            b: v[2],
+        };
     }
 }
-
 
 pub fn filter_white(image: &RgbImage) -> RgbImage {
     let white = Rgb([255u8, 255u8, 255u8]);
@@ -258,15 +257,14 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
     result
 }
 
-pub fn rgb_image_to_view(image: &RgbImage) -> crate::ImageBufferView::<[u8], 3>
-{
+/// Wrap an `crate::ImageBufferView` around the data in the `image::RgbImage`.
+pub fn rgb_image_to_view(image: &RgbImage) -> crate::ImageBufferView<[u8], 3> {
     crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw())
 }
 
 pub fn dev_histogram_on_image() -> Result<(), Box<dyn std::error::Error>> {
     let image = dev_create_example_glyphs()?;
-    let z =
-        crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
+    let z = crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
     let x = crate::ImageBufferView::<[u8], 3>::from_raw_ref(
         image.width(),
         image.height(),

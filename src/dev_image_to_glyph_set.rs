@@ -1,7 +1,6 @@
 use image::open;
 use std::path::Path;
 
-
 fn main() {
     let file_path = std::env::args()
         .nth(1)

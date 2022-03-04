@@ -1,16 +1,26 @@
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 /// Struct to represent a single pixel.
 pub struct RGB {
+    /// The red channel
     pub r: u8,
+    /// The green channel
     pub g: u8,
+    /// The blue channel
     pub b: u8,
 }
 
-impl RGB
-{
-    pub fn white() -> Self
-    {
-        RGB{r: 255, g: 255, b: 255}
+impl RGB {
+    /// The color white.
+    pub fn white() -> Self {
+        RGB {
+            r: 255,
+            g: 255,
+            b: 255,
+        }
+    }
+    /// The color red.
+    pub fn red() -> Self {
+        RGB { r: 255, g: 0, b: 0 }
     }
 }
 
@@ -33,6 +43,7 @@ impl From<&[u8]> for RGB {
     }
 }
 
+/// Trait representing an image.
 pub trait Image {
     /// Returns the width of the image.
     fn width(&self) -> u32;
@@ -85,6 +96,7 @@ where
     }
 }
 
+/// Interpret a byte slice as an rgb image of certain size.
 pub fn image_buffer_view_rgb<'a>(
     width: u32,
     height: u32,
