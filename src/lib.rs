@@ -119,6 +119,7 @@ fn moving_windowed_histogram(
             {
                 histogram[x].count += 1;
                 histogram[x].label = *index;
+                return;
             }
         }
     }
@@ -129,6 +130,7 @@ fn moving_windowed_histogram(
             if color == p
             {
                 histogram[x].count = histogram[x].count.saturating_sub(1);
+                return;
             }
         }
     }
