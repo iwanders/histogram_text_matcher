@@ -8,8 +8,7 @@ use std::path::Path;
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
 
-// mod glyphs;
-use image_text_matcher::{Glyph, GlyphSet};
+use crate::glyphs::{Glyph, GlyphSet};
 
 pub type Histogram = Vec<u8>;
 
@@ -250,18 +249,18 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
 pub fn dev_histogram_on_image() -> Result<(), Box<dyn std::error::Error>> {
     let image = dev_create_example_glyphs()?;
     let z =
-        image_text_matcher::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
-    let x = image_text_matcher::ImageBufferView::<[u8], 3>::from_raw_ref(
+        crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
+    let x = crate::ImageBufferView::<[u8], 3>::from_raw_ref(
         image.width(),
         image.height(),
         &image.as_raw(),
     ); // reference
-    let y = image_text_matcher::ImageBufferView::<Vec<u8>, 3>::from_raw_ref(
+    let y = crate::ImageBufferView::<Vec<u8>, 3>::from_raw_ref(
         image.width(),
         image.height(),
         &image.as_raw(),
     ); // copy
-    use image_text_matcher::Image;
+    use crate::Image;
     let p = z.pixel(27, 45);
     let px = x.pixel(27, 45);
     let py = y.pixel(27, 45);

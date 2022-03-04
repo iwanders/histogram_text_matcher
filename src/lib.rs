@@ -7,11 +7,16 @@
 // mod dev_util;
 // use dev_util::*;
 
-mod glyphs;
-pub use glyphs::*;
+pub mod glyphs;
+// use glyphs::*;
 
 mod interface;
 pub use interface::*;
+
+#[cfg(feature="image_support")]
+pub mod image_support;
+#[cfg(test)]
+mod image_support;
 
 // type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 /*
@@ -632,3 +637,13 @@ fn things_with_token_map(map: &TokenMap) {
         .unwrap();
 }
 */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_key_lookup() {
+        assert!(true);
+        let image = image_support::dev_create_example_glyphs();
+    }
+}

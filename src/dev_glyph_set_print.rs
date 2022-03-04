@@ -1,8 +1,3 @@
-mod glyphs;
-
-mod dev_lib;
-use dev_lib::*;
-
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
@@ -11,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = std::env::args()
         .nth(1)
         .expect("No input argument specified.");
-    let glyph_set = glyphs::load_glyph_set(&file_path)?;
+    let glyph_set = image_text_matcher::glyphs::load_glyph_set(&file_path)?;
 
     let line_offset: u32 = 10;
     let line_height = glyph_set.line_height as u32 + line_offset;
@@ -37,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &font,
             &g.glyph,
         );
-        draw_histogram_mut_xy_a(
+        image_text_matcher::image_support::draw_histogram_mut_xy_a(
             &mut image,
             10,
             y + (glyph_set.line_height as u32 / 2),

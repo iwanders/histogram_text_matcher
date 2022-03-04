@@ -15,20 +15,29 @@ incremental=true
 serde = {version="1.0", features = ["derive"] }
 serde_json = "1.0"
 
+imageproc = {version = "0.22.0", optional=true}
+image = { version = "0.23.6", optional=true}
+rusttype = { version = "0.9.2", optional=true}
+
 [dev-dependencies]
 imageproc = {version = "0.22.0"}
 image = { version = "0.23.6"}
 rusttype = { version = "0.9.2"}
 
+[features]
+image_support = ["imageproc", "image", "rusttype"]
 
 [[example]]
 name = "dev_image_to_glyph_set"
 path = "src/dev_image_to_glyph_set.rs"
+required-features = ["image_support"]
 
 [[example]]
 name = "dev_glyph_set_print"
 path = "src/dev_glyph_set_print.rs"
+required-features = ["image_support"]
 
 [[example]]
 name = "dev_example_glyphs"
 path = "src/dev_example_glyphs.rs"
+required-features = ["image_support"]
