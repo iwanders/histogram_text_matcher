@@ -3,10 +3,6 @@ name = "image_text_matcher"
 version = "0.0.0"
 edition = "2021"
 
-# Using optional dependencies is inconvenient around examples.
-# https://github.com/rust-lang/cargo/issues/4663
-# We want the examples to 'just work' so we use dev depends there for now.
-
 [profile.dev]
 opt-level=3
 incremental=true

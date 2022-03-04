@@ -6,6 +6,14 @@ pub struct RGB {
     pub b: u8,
 }
 
+impl RGB
+{
+    pub fn white() -> Self
+    {
+        RGB{r: 255, g: 255, b: 255}
+    }
+}
+
 impl From<&[u8]> for RGB {
     fn from(v: &[u8]) -> Self {
         if v.len() == 3 {

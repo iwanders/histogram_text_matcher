@@ -4,19 +4,48 @@
 // use imageproc::rect::Rect;
 // use imageproc::rect::Region;
 
-// mod dev_util;
-// use dev_util::*;
-
 pub mod glyphs;
-// use glyphs::*;
 
 mod interface;
 pub use interface::*;
 
+pub type SimpleHistogram = Vec<u8>;
+
+// This here ensures that we have image support when the feature is enabled, but also for all tests.
 #[cfg(feature="image_support")]
 pub mod image_support;
 #[cfg(test)]
-mod image_support;
+pub mod image_support;
+
+
+
+fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram
+{
+    let mut res : SimpleHistogram = SimpleHistogram::new();
+    res.resize(image.width() as usize, 0);
+    for y in 0..image.height()
+    {
+        for x in 0..image.width()
+        {
+            res[x as usize] += if image.pixel(x, y) == color { 1 } else { 0 };
+        }
+    }
+    res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_key_lookup() {
+        assert!(true);
+        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let image = image_support::rgb_image_to_view(&rgb_image);
+        let hist = image_to_simple_histogram(&image, RGB::white());
+        println!("Histogram: {hist:?}");
+    }
+}
+
 
 // type HistogramMap = Vec<((usize, usize), Rect, Histogram)>;
 /*
@@ -637,13 +666,3 @@ fn things_with_token_map(map: &TokenMap) {
         .unwrap();
 }
 */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_key_lookup() {
-        assert!(true);
-        let image = image_support::dev_create_example_glyphs();
-    }
-}

@@ -10,7 +10,19 @@ use rusttype::{Font, Scale};
 
 use crate::glyphs::{Glyph, GlyphSet};
 
-pub type Histogram = Vec<u8>;
+pub use crate::SimpleHistogram as Histogram;
+
+impl From<&Rgb<u8>> for crate::RGB {
+    fn from(v: &Rgb<u8>) -> Self {
+            return crate::RGB {
+                r: v[0],
+                g: v[1],
+                b: v[2],
+            };
+
+    }
+}
+
 
 pub fn filter_white(image: &RgbImage) -> RgbImage {
     let white = Rgb([255u8, 255u8, 255u8]);
@@ -244,6 +256,11 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
         .save(Path::new("dev_histogram_boxes.png"))
         .unwrap();
     result
+}
+
+pub fn rgb_image_to_view(image: &RgbImage) -> crate::ImageBufferView::<[u8], 3>
+{
+    crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw())
 }
 
 pub fn dev_histogram_on_image() -> Result<(), Box<dyn std::error::Error>> {
