@@ -21,7 +21,8 @@ fn main() {
     let image = open(path)
         .expect(&format!("could not load image at {:?}", path))
         .to_rgb8();
-    let glyph_set = image_text_matcher::image_support::dev_image_to_glyph_set(&image, only_line);
+    let glyph_set =
+        histogram_text_matcher::image_support::dev_image_to_glyph_set(&image, only_line);
     let j = serde_json::to_string(&glyph_set).expect("will succeed");
     println!("{j}");
 }

@@ -1,7 +1,5 @@
-
 // This is really nice, should adhere to this;
 // https://rust-lang.github.io/api-guidelines/naming.html
-
 
 pub mod glyphs;
 
@@ -17,7 +15,6 @@ pub mod image_support;
 #[cfg(test)]
 pub mod image_support;
 
-
 /// Function to match a single color in an image and convert this to a histogram.
 fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
     let mut res: SimpleHistogram = SimpleHistogram::new();
@@ -29,7 +26,6 @@ fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
     }
     res
 }
-
 
 fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     let mut res: u8 = 0;
@@ -47,7 +43,7 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
 fn histogram_glyph_matcher(
     histogram: &[u8],
     set: &glyphs::GlyphSet,
-    min_width: usize
+    min_width: usize,
 ) -> Vec<(glyphs::Glyph, u8)> {
     let v = histogram;
     let mut i: usize = 0;
@@ -91,22 +87,130 @@ fn histogram_glyph_matcher(
     res
 }
 
-
-#[derive(Debug, Clone, Default)]
-struct Bin
+fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin>
 {
+    hist.iter().map(|x| { Bin{count: *x as u32, label: 0} }).collect::<_>()
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+struct Bin {
     count: u32,
     label: usize,
 }
 
 type ColorLabel = (RGB, usize);
 
-fn moving_windowed_histogram(
-    image: &dyn Image,
-    set: &glyphs::GlyphSet,
-    labels: &[ColorLabel]) {
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Token<'a> {
+    WhiteSpace(usize), // Value denotes amount of whitespace pixels.
+    Glyph {
+        glyph: &'a glyphs::Glyph,
+        label: usize,
+        error: u32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Match<'a> {
+    token: Token<'a>,
+    position: u32,
+}
+
+fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Match<'a>> {
+    let mut i: usize = 0; // index into the histogram.
+    let mut res: Vec<Match<'a>> = Vec::new();
 
 
+    fn calc_score(pattern: &[u8], to_match: &[Bin]) -> u32 {
+        let mut res: u32 = 0;
+        for (x_a, b) in (0..pattern.len()).zip(to_match.iter()) {
+            let a = if x_a < pattern.len() {
+                pattern[x_a]
+            } else {
+                0u8
+            };
+            let a = a as u32;
+            res += if a > b.count { a - b.count } else { b.count - a };
+        }
+        res
+    }
+
+
+    // Boolean to keep track of whether we are using stripped values or non stripped values
+    // to compare.
+    let mut use_stripped = true;
+
+    while i < histogram.len() - 1 {
+        // If we are using stripped symbols, remove the padding from the left, this will be very
+        // fast.
+        if use_stripped {
+            if histogram[i].count == 0 {
+                // This checks if the last entry in the current matches is a whitespace token,
+                // if it is, we will add one to it, otherwise, we push a new whitespace token.
+                let mut last = res.last_mut();
+                if last.is_some()
+                    && std::mem::discriminant(&last.as_ref().unwrap().token)
+                        == std::mem::discriminant(&Token::WhiteSpace(0))
+                {
+                    if let Token::WhiteSpace(ref mut z) = last.unwrap().token {
+                        *z += 1;
+                    }
+                } else {
+                    res.push(Match {
+                        token: Token::WhiteSpace(1),
+                        position: i as u32,
+                    });
+                }
+                i += 1;
+                continue;
+            }
+        }
+
+        // We got a non zero entry in the first bin now.
+        let remainder = &histogram[i..];
+
+        // Next, make sure we only match the label found in the first bin.
+        let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
+        let remainder = &histogram[i..i+max_index.unwrap_or(remainder.len())];
+
+        // Let us check all the glyphs and determine which one has the lowest score.
+        
+        type ScoreType = u32;
+        let mut scores: Vec<ScoreType> = vec![];
+        scores.resize(set.entries.len(), 0 as ScoreType);
+        for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
+            *score = calc_score(if use_stripped{ glyph.lstrip_hist() } else {glyph.hist()}, remainder);
+        }
+
+        // https://stackoverflow.com/a/53908709
+        let index_of_min: Option<usize> = scores
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index);
+
+        if let Some(best) = index_of_min {
+            let found_glyph = &set.entries[best];
+            let score = scores[best];
+            // if (score == 0)
+            // {
+                // Only add a glyph if we got a perfect score.
+            // }
+            res.push(Match{position: i as u32, token: Token::Glyph{glyph: found_glyph, error: score as u32, label: remainder[0].label}});
+
+            i += if use_stripped{ found_glyph.lstrip_hist().len() } else {found_glyph.hist().len()};
+
+            // Only use stripped if we got a perfect match.
+            use_stripped = score == 0;
+
+        } else {
+            panic!("Somehow didn't get a lowest score... did we have glyphs?");
+        }
+    }
+    res
+}
+
+fn moving_windowed_histogram(image: &dyn Image, set: &glyphs::GlyphSet, labels: &[ColorLabel]) {
     let mut histogram: Vec<Bin> = Vec::<Bin>::new();
     histogram.resize(image.width() as usize, Default::default());
     let window_size = set.line_height as u32;
@@ -116,10 +220,8 @@ fn moving_windowed_histogram(
     // and the top row that moves out we subtract.
 
     fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
-        for (color, index) in labels.iter()
-        {
-            if color == p
-            {
+        for (color, index) in labels.iter() {
+            if color == p {
                 histogram[x].count += 1;
                 histogram[x].label = *index;
                 return;
@@ -128,10 +230,8 @@ fn moving_windowed_histogram(
     }
 
     fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
-        for (ref color, index) in labels.iter()
-        {
-            if color == p
-            {
+        for (ref color, index) in labels.iter() {
+            if color == p {
                 histogram[x].count = histogram[x].count.saturating_sub(1);
                 return;
             }
@@ -150,7 +250,6 @@ fn moving_windowed_histogram(
         // Here, we match the current histogram, and store matches.
         // token_binned_histogram_matcher(y, &single_hist, &map, &histmap_reduced, &mut image_mutable);
 
-
         // Subtract from the side moving out of the histogram.
         for x in 0..image.width() {
             let p = image.pixel(x, y);
@@ -165,12 +264,11 @@ fn moving_windowed_histogram(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn test_key_lookup() {
+    fn test_histogram_glyph_matcher() {
         assert!(true);
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let image = image_support::rgb_image_to_view(&rgb_image);
@@ -178,18 +276,41 @@ mod tests {
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
         glyph_set.prepare();
 
-
         println!("Histogram: {hist:?}");
 
         let res = histogram_glyph_matcher(&hist, &glyph_set, 10);
 
         assert!(res.len() == 4);
-        for (g, score) in res.iter()
-        {
-            println!("{g:?}: score");
+        for (g, score) in res.iter() {
+            println!("{g:?}: {score}");
             assert!(*score == 0);
         }
+    }
 
+    #[test]
+    fn test_bin_glyph_matcher() {
+        assert!(true);
+        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let image = image_support::rgb_image_to_view(&rgb_image);
+        let hist = image_to_simple_histogram(&image, RGB::white());
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        glyph_set.prepare();
+
+        let binned = simple_histogram_to_bin_histogram(&hist);
+
+        let matches = bin_glyph_matcher(&binned, &glyph_set);
+        // println!("Histogram: {matches:?}");
+
+        for (i, v) in matches.iter().enumerate()
+        {
+            println!("{i}: {v:?}");
+        }
+
+
+        // assert!(res.len() == 4);
+        // for (g, score) in res.iter() {
+            // println!("{g:?}: {score}");
+            // assert!(*score == 0);
+        // }
     }
 }
-

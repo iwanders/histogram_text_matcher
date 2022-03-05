@@ -1,5 +1,5 @@
 [package]
-name = "image_text_matcher"
+name = "histogram_text_matcher"
 version = "0.0.0"
 edition = "2021"
 

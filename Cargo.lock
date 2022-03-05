@@ -171,6 +171,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "histogram_text_matcher"
+version = "0.0.0"
+dependencies = [
+ "image",
+ "imageproc",
+ "rusttype",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "image"
 version = "0.23.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -187,17 +198,6 @@ dependencies = [
  "png",
  "scoped_threadpool",
  "tiff",
-]
-
-[[package]]
-name = "image_text_matcher"
-version = "0.0.0"
-dependencies = [
- "image",
- "imageproc",
- "rusttype",
- "serde",
- "serde_json",
 ]
 
 [[package]]

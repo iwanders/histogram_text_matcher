@@ -6,7 +6,7 @@ use serde_json;
 type HistogramValue = u8;
 
 /// Representation for a single glyph.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Glyph {
     /// Histogram used to identify this glyph.
     hist: Vec<HistogramValue>,
@@ -17,41 +17,33 @@ pub struct Glyph {
     glyph: String,
 }
 
-impl Glyph
-{
-
-    pub fn new(hist: &[HistogramValue], glyph: &str) -> Glyph
-    {
+impl Glyph {
+    pub fn new(hist: &[HistogramValue], glyph: &str) -> Glyph {
         let mut z = Glyph {
-                hist: hist.to_vec(),
-                glyph: glyph.to_owned(),
-                lstrip_hist: vec![],
-            };
+            hist: hist.to_vec(),
+            glyph: glyph.to_owned(),
+            lstrip_hist: vec![],
+        };
         z.prepare();
         z
     }
 
-    pub fn prepare(&mut self)
-    {
+    pub fn prepare(&mut self) {
         let mut i = 0usize;
-        while self.hist[i] == 0 && i < self.hist.len()
-        {
+        while self.hist[i] == 0 && i < self.hist.len() {
             i += 1;
         }
         self.lstrip_hist = self.hist[i..].to_vec();
     }
 
-    pub fn hist(&self) -> &[HistogramValue]
-    {
+    pub fn hist(&self) -> &[HistogramValue] {
         &self.hist
     }
 
-    pub fn lstrip_hist(&self) -> &[HistogramValue]
-    {
+    pub fn lstrip_hist(&self) -> &[HistogramValue] {
         &self.lstrip_hist
     }
-    pub fn glyph(&self) -> &str
-    {
+    pub fn glyph(&self) -> &str {
         &self.glyph
     }
 }
@@ -70,13 +62,9 @@ pub struct GlyphSet {
     pub name: String,
 }
 
-
-impl GlyphSet
-{
-    pub fn prepare(&mut self)
-    {
-        for entry in self.entries.iter_mut()
-        {
+impl GlyphSet {
+    pub fn prepare(&mut self) {
+        for entry in self.entries.iter_mut() {
             entry.prepare();
         }
     }

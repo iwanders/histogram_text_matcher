@@ -245,7 +245,9 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
             let _global_rect =
                 Rect::at(b.left() + z.left(), b.top() + z.top()).of_size(z.width(), z.height());
 
-            result.entries.push(Glyph::new(&sub_img_histogram, &format!("{r}-{c}")));
+            result
+                .entries
+                .push(Glyph::new(&sub_img_histogram, &format!("{r}-{c}")));
         }
     }
     let _ = image_with_rect

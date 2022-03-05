@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = std::env::args()
         .nth(1)
         .expect("No input argument specified.");
-    let glyph_set = image_text_matcher::glyphs::load_glyph_set(&file_path)?;
+    let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&file_path)?;
 
     let line_offset: u32 = 10;
     let line_height = glyph_set.line_height as u32 + line_offset;
@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &font,
             &g.glyph(),
         );
-        image_text_matcher::image_support::draw_histogram_mut_xy_a(
+        histogram_text_matcher::image_support::draw_histogram_mut_xy_a(
             &mut image,
             10,
             y + (glyph_set.line_height as u32 / 2),
