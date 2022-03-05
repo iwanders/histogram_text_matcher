@@ -278,25 +278,27 @@ struct Rect {
 
 impl Rect {
     pub fn overlaps(&self, b: &Rect) -> bool {
-        let s_xmin = self.x;
-        let s_xmax = self.x + self.w;
-        let b_xmin = b.x;
-        let b_xmax = b.x + b.w;
-
-        let s_ymin = self.y;
-        let s_ymax = self.y + self.h;
-        let b_ymin = b.y;
-        let b_ymax = b.y + b.h;
-
-        // Overlapping if:
-        // x coordinate -> self xmin geq b xmin and bxmax geq self xmin
-        // y coordinate -> self ymin geq b ymin and bymax geq self ymin
-        s_xmin >= b_xmin && b_xmax >= s_xmin && s_ymin >= b_ymin && b_ymax >= s_ymin
+        self.right() >= b.left() && b.right() >= self.left()
+        &&
+        self.top() >= b.bottom() && b.top() >= self.bottom()
     }
 
     pub fn top(&self) -> u32
     {
         self.y + self.h
+    }
+    pub fn bottom(&self) -> u32
+    {
+        self.y
+    }
+
+    pub fn left(&self) -> u32
+    {
+        self.x
+    }
+    pub fn right(&self) -> u32
+    {
+        self.x + self.w
     }
 }
 
@@ -361,8 +363,8 @@ pub fn moving_windowed_histogram<'a>(
 
         // println!("{histogram:?}");
 
-        let simple_hist = bin_histogram_to_simple_histogram(&histogram);
-        println!("y: {y} -> {simple_hist:?}");
+        // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
+        // println!("y: {y} -> {simple_hist:?}");
         let matches = bin_glyph_matcher(&histogram, &set);
         // Matches are 1D matches, we want consecutive glyph blocks.
         // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
@@ -395,17 +397,17 @@ pub fn moving_windowed_histogram<'a>(
                 let first_glyph = glyphs.first().expect("never empty");
                 let last_glyph = glyphs.last().expect("never empty");
 
-                print!("y: {y} -> ");
-                for t in glyphs.iter()
-                {
-                    match &t.token
-                    {
-                        Token::WhiteSpace(w) => print!(" w {w}"),
-                        Token::Glyph{glyph, label, error} => {let s = glyph.glyph(); print!(" {}", s)},
-                    }
+                // print!("y: {y} -> ");
+                // for t in glyphs.iter()
+                // {
+                    // match &t.token
+                    // {
+                        // Token::WhiteSpace(w) => print!(" w {w}"),
+                        // Token::Glyph{glyph, label, error} => {let s = glyph.glyph(); print!(" {}", s)},
+                    // }
 
-                }
-                println!();
+                // }
+                // println!();
 
                 let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
                 let this_block_region = Rect{x: first_glyph.position, y, w:block_width, h: window_size};
