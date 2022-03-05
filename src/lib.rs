@@ -211,7 +211,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         if let Some(best) = index_of_min {
             let found_glyph = &set.entries[best];
             let score = scores[best];
-            println!("#{i} score: {score} -> {found_glyph:?}");
+            // println!("#{i} score: {score} -> {found_glyph:?}");
 
             if score == 0 {
                 res.push(Match {
@@ -385,8 +385,15 @@ mod tests {
         let matches = bin_glyph_matcher(&binned, &glyph_set);
         // println!("Histogram: {matches:?}");
 
+        let mut glyph_counter = 0;
         for (i, v) in matches.iter().enumerate() {
             println!("{i}: {v:?}");
+            if let Token::Glyph{glyph, label, error} = v.token
+            {
+                assert!(*glyph == glyph_set.entries[glyph_counter]);
+                assert!(error == 0);
+                glyph_counter += 1;
+            }
         }
     }
 }
