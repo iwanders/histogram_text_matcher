@@ -135,7 +135,7 @@ pub fn draw_histogram_mut_xy_a(
     image: &mut image::RgbImage,
     left: u32,
     bottom: u32,
-    hist: &Histogram,
+    hist: &[u8],
     color: Rgb<u8>,
     alpha: f32,
 ) {

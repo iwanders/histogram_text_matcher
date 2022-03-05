@@ -30,13 +30,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             y,
             scale,
             &font,
-            &g.glyph,
+            &g.glyph(),
         );
         image_text_matcher::image_support::draw_histogram_mut_xy_a(
             &mut image,
             10,
             y + (glyph_set.line_height as u32 / 2),
-            &g.hist,
+            &g.hist(),
             Rgb([255u8, 255u8, 0u8]),
             1.0,
         );
