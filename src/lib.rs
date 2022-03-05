@@ -46,10 +46,13 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
 
 fn histogram_glyph_matcher(
     histogram: &[u8],
-    set: &glyphs::GlyphSet
-) {
+    set: &glyphs::GlyphSet,
+    min_width: usize
+) -> Vec<(glyphs::Glyph, u8)> {
     let v = histogram;
     let mut i: usize = 0;
+    let mut res: Vec<(glyphs::Glyph, u8)> = Vec::new();
+
     while i < v.len() - 1 {
         if v[i] == 0 {
             i += 1;
@@ -62,7 +65,7 @@ fn histogram_glyph_matcher(
         let mut scores: Vec<ScoreType> = vec![];
         scores.resize(set.entries.len(), 0 as ScoreType);
         for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
-            *score = calc_score_min(glyph.lstrip_hist(), &remainder, 10);
+            *score = calc_score_min(glyph.lstrip_hist(), &remainder, min_width);
         }
         // println!("{scores:?}");
 
@@ -77,14 +80,15 @@ fn histogram_glyph_matcher(
         if let Some(best) = index_of_min {
             let token = &set.entries[best];
             let score = scores[best];
-            println!("Found {best}, with {score} -> {token:?}");
+            res.push((token.clone(), score));
 
-            i += token.hist.len();
+            i += token.lstrip_hist().len();
         } else {
-            println!("Huh? didn't have a lowest score??");
+            // println!("Huh? didn't have a lowest score??");
             i += 1;
         }
     }
+    res
 }
 
 
@@ -177,7 +181,15 @@ mod tests {
 
         println!("Histogram: {hist:?}");
 
-        let res = histogram_glyph_matcher(&hist, &glyph_set);
+        let res = histogram_glyph_matcher(&hist, &glyph_set, 10);
+
+        assert!(res.len() == 4);
+        for (g, score) in res.iter()
+        {
+            println!("{g:?}: score");
+            assert!(*score == 0);
+        }
+
     }
 }
 

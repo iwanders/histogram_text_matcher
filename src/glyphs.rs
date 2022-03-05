@@ -9,12 +9,12 @@ type HistogramValue = u8;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Glyph {
     /// Histogram used to identify this glyph.
-    pub hist: Vec<HistogramValue>,
+    hist: Vec<HistogramValue>,
     /// Histogram with left zero's removed.
     #[serde(skip)]
     lstrip_hist: Vec<HistogramValue>,
     /// String representation to associate with the glyph, can contain multiple characters.
-    pub glyph: String,
+    glyph: String,
 }
 
 impl Glyph
