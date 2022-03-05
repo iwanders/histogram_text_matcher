@@ -98,6 +98,11 @@ fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin> {
         .collect::<_>()
 }
 
+fn bin_histogram_to_simple_histogram(hist: &[Bin]) -> SimpleHistogram
+{
+    hist.iter().map(|x|{ x.count as u8 }).collect::<_>()
+}
+
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 struct Bin {
     count: u32,
@@ -296,12 +301,12 @@ impl Rect {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Match2D<'a> {
+pub struct Match2D<'a> {
     tokens: Vec<LabelledGlyph<'a>>,
     location: Rect,
 }
 
-fn moving_windowed_histogram<'a>(
+pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
     set: &'a glyphs::GlyphSet,
     labels: &[ColorLabel],
@@ -351,9 +356,13 @@ fn moving_windowed_histogram<'a>(
         }
     }
 
-    for y in 1..((image.height() - window_size) as u32) {
+    for y in 0..((image.height() - window_size) as u32) {
         // Here, we match the current histogram, and store matches.
 
+        // println!("{histogram:?}");
+
+        let simple_hist = bin_histogram_to_simple_histogram(&histogram);
+        println!("y: {y} -> {simple_hist:?}");
         let matches = bin_glyph_matcher(&histogram, &set);
         // Matches are 1D matches, we want consecutive glyph blocks.
         // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
@@ -374,34 +383,51 @@ fn moving_windowed_histogram<'a>(
             } = matches[match_index].token
             {
                 // Find the index where this consecutive glyph block ends.
-                let block_end = matches[match_index + 1..]
+                let block_end = matches[match_index..]
                     .iter()
                     .position(|z| {
                         std::mem::discriminant(&z.token)
                             == std::mem::discriminant(&Token::WhiteSpace(0))
                     })
                     .unwrap_or(matches.len());
-                let glyphs = &matches[match_index..block_end];
+                // println!("block_end  {block_end}");
+                let glyphs = &matches[match_index..match_index + block_end];
                 let first_glyph = glyphs.first().expect("never empty");
                 let last_glyph = glyphs.last().expect("never empty");
-                let block_width = last_glyph.position + last_glyph.width;
 
+                print!("y: {y} -> ");
+                for t in glyphs.iter()
+                {
+                    match &t.token
+                    {
+                        Token::WhiteSpace(w) => print!(" w {w}"),
+                        Token::Glyph{glyph, label, error} => {let s = glyph.glyph(); print!(" {}", s)},
+                    }
+
+                }
+                println!();
+
+                let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
                 let this_block_region = Rect{x: first_glyph.position, y, w:block_width, h: window_size};
 
                 // Check if this overlaps with others in the consideration buffer;
-                let before = res_consider.len();
+                let mut do_insert = true;
                 res_consider = res_consider.drain(..).filter(|m|{
-                    if (m.location.overlaps(&this_block_region))
+                    if m.location.overlaps(&this_block_region)
                     {
-                        if (m.tokens.len() < glyphs.len())
+                        if glyphs.len() < m.tokens.len()
                         {
-                            return false;
+                            do_insert = false; // already existing overlap is better.
+                        }
+                        else
+                        {
+                            return false; // yes, this is an upgrade, drop from res_consider
                         }
                     }
                     return true;
                 }).collect::<_>();
 
-                if res_consider.len() != before
+                if do_insert
                 {
                     // we pruned boxes, so the new one must be better.
                     res_consider.push_back(Match2D{tokens: glyphs.iter().map(|z|{
@@ -412,6 +438,7 @@ fn moving_windowed_histogram<'a>(
                         }
                     }).collect::<_>(), location: this_block_region});
                 }
+                match_index += glyphs.len();
             }
         }
 
@@ -485,33 +512,14 @@ mod tests {
     #[test]
     fn test_bin_glyph_matcher_no_white_space() {
         println!();
-        use image::Rgb;
-        use rusttype::{Font, Scale};
+
         use std::path::Path;
 
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
         glyph_set.prepare();
 
-        // Create an image without spaces.
-        let font_size = 40.0;
-
-        let font =
-            std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf").expect("Works");
-        let font = Font::try_from_vec(font).unwrap();
-
-        let size = (
-            (font_size * (4 + 1) as f32) as u32,
-            (font_size * 2.0) as u32,
-        );
-
-        let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
-        drawables.push(((20, 20), String::from("a"), Rgb([255u8, 255u8, 255u8])));
-        drawables.push(((35, 20), String::from("b"), Rgb([255u8, 255u8, 255u8])));
-        drawables.push(((54, 20), String::from("e"), Rgb([255u8, 255u8, 255u8])));
-        drawables.push(((73, 20), String::from("z"), Rgb([255u8, 255u8, 255u8])));
-
-        let image = image_support::render_font_image(size, &font, font_size, &drawables);
+        let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
         let _ = image
             .save(Path::new("dev_glyph_matcher_no_white_space.png"))
             .unwrap();
@@ -522,6 +530,7 @@ mod tests {
 
         let image = image_support::rgb_image_to_view(&image);
         let hist = image_to_simple_histogram(&image, RGB::white());
+        println!("hist: {hist:?}");
         let binned = simple_histogram_to_bin_histogram(&hist);
 
         let matches = bin_glyph_matcher(&binned, &glyph_set);
@@ -540,6 +549,31 @@ mod tests {
                 assert!(error == 0);
                 glyph_counter += 1;
             }
+        }
+    }
+    #[test]
+    fn test_bin_glyph_matcher_no_white_space_moving() {
+        println!();
+        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        glyph_set.prepare();
+        println!("glyph_set: {glyph_set:?}");
+
+        let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
+        let image = image_support::rgb_image_to_view(&image);
+        let labels = vec![(RGB::white(), 0)];
+
+        let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
+        for m in matches.iter()
+        {
+            let location = &m.location;
+            print!("{location:?} -> ");
+            for t in m.tokens.iter()
+            {
+                let g = t.glyph.glyph();
+                print!(" {g:?}");
+            }
+            println!();
         }
     }
 }

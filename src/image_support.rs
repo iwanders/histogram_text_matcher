@@ -175,6 +175,28 @@ pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error
     Ok(render_font_image(size, &font, font_size, &drawables))
 }
 
+pub fn dev_create_example_glyphs_packed() -> Result<RgbImage, Box<dyn std::error::Error>> {
+    // Create an image without spaces.
+    let font_size = 40.0;
+
+    let font =
+        std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
+    let font = Font::try_from_vec(font).unwrap();
+
+    let size = (
+        (font_size * (4 + 1) as f32) as u32,
+        (font_size * 2.0) as u32,
+    );
+
+    let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
+    drawables.push(((20, 20), String::from("a"), Rgb([255u8, 255u8, 255u8])));
+    drawables.push(((35, 20), String::from("b"), Rgb([255u8, 255u8, 255u8])));
+    drawables.push(((54, 20), String::from("e"), Rgb([255u8, 255u8, 255u8])));
+    drawables.push(((73, 20), String::from("z"), Rgb([255u8, 255u8, 255u8])));
+
+    Ok(render_font_image(size, &font, font_size, &drawables))
+}
+
 /// Something that analyses an image with glyphs on it, creating the glyphset with histograms.
 pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> GlyphSet {
     let mut result: GlyphSet = Default::default();
