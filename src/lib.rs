@@ -1,6 +1,8 @@
 // This is really nice, should adhere to this;
 // https://rust-lang.github.io/api-guidelines/naming.html
 
+// Should consider https://rust-lang.github.io/rust-clippy/rust-1.59.0/index.html#shadow_same
+
 pub mod glyphs;
 
 mod interface;
@@ -87,9 +89,13 @@ fn histogram_glyph_matcher(
     res
 }
 
-fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin>
-{
-    hist.iter().map(|x| { Bin{count: *x as u32, label: 0} }).collect::<_>()
+fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin> {
+    hist.iter()
+        .map(|x| Bin {
+            count: *x as u32,
+            label: 0,
+        })
+        .collect::<_>()
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
@@ -120,7 +126,6 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
-
     fn calc_score(pattern: &[u8], to_match: &[Bin]) -> u32 {
         let mut res: u32 = 0;
         for (x_a, b) in (0..pattern.len()).zip(to_match.iter()) {
@@ -130,11 +135,14 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
                 0u8
             };
             let a = a as u32;
-            res += if a > b.count { a - b.count } else { b.count - a };
+            res += if a > b.count {
+                a - b.count
+            } else {
+                b.count - a
+            };
         }
         res
     }
-
 
     // Boolean to keep track of whether we are using stripped values or non stripped values
     // to compare.
@@ -147,6 +155,9 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
             if histogram[i].count == 0 {
                 // This checks if the last entry in the current matches is a whitespace token,
                 // if it is, we will add one to it, otherwise, we push a new whitespace token.
+                // CONSIDER: this is less than ideal, may want to do something smart here
+                // run through it once to identify whitespace jumps at the top to prepare
+                // then here just do a single jump if within one of the whitespace intervals.
                 let mut last = res.last_mut();
                 if last.is_some()
                     && std::mem::discriminant(&last.as_ref().unwrap().token)
@@ -169,17 +180,25 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         // We got a non zero entry in the first bin now.
         let remainder = &histogram[i..];
 
+        // CONSIDER: Splitting the histogram by labels at the start, then match on the labels.
         // Next, make sure we only match the label found in the first bin.
         let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
-        let remainder = &histogram[i..i+max_index.unwrap_or(remainder.len())];
+        let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
 
         // Let us check all the glyphs and determine which one has the lowest score.
-        
+
         type ScoreType = u32;
         let mut scores: Vec<ScoreType> = vec![];
         scores.resize(set.entries.len(), 0 as ScoreType);
         for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
-            *score = calc_score(if use_stripped{ glyph.lstrip_hist() } else {glyph.hist()}, remainder);
+            *score = calc_score(
+                if use_stripped {
+                    glyph.lstrip_hist()
+                } else {
+                    glyph.hist()
+                },
+                remainder,
+            );
         }
 
         // https://stackoverflow.com/a/53908709
@@ -192,17 +211,32 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         if let Some(best) = index_of_min {
             let found_glyph = &set.entries[best];
             let score = scores[best];
-            // if (score == 0)
-            // {
-                // Only add a glyph if we got a perfect score.
-            // }
-            res.push(Match{position: i as u32, token: Token::Glyph{glyph: found_glyph, error: score as u32, label: remainder[0].label}});
+            println!("#{i} score: {score} -> {found_glyph:?}");
 
-            i += if use_stripped{ found_glyph.lstrip_hist().len() } else {found_glyph.hist().len()};
+            if score == 0 {
+                res.push(Match {
+                    position: i as u32,
+                    token: Token::Glyph {
+                        glyph: found_glyph,
+                        error: score as u32,
+                        label: remainder[0].label,
+                    },
+                });
 
-            // Only use stripped if we got a perfect match.
-            use_stripped = score == 0;
+                // Advance the cursor by the width of the glyph we just matched.
+                i += if use_stripped {
+                    found_glyph.lstrip_hist().len()
+                } else {
+                    found_glyph.hist().len()
+                };
+            }
+            else
+            {
+                i += 1;
+            }
 
+            // Only use stripped if we didn't get a perfect match.
+            use_stripped = score != 0;
         } else {
             panic!("Somehow didn't get a lowest score... did we have glyphs?");
         }
@@ -301,16 +335,58 @@ mod tests {
         let matches = bin_glyph_matcher(&binned, &glyph_set);
         // println!("Histogram: {matches:?}");
 
-        for (i, v) in matches.iter().enumerate()
-        {
+        for (i, v) in matches.iter().enumerate() {
             println!("{i}: {v:?}");
         }
+    }
 
+    #[test]
+    fn test_bin_glyph_matcher_no_white_space() {
+        println!();
+        use image::Rgb;
+        use rusttype::{Font, Scale};
+        use std::path::Path;
 
-        // assert!(res.len() == 4);
-        // for (g, score) in res.iter() {
-            // println!("{g:?}: {score}");
-            // assert!(*score == 0);
-        // }
+        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        glyph_set.prepare();
+
+        // Create an image without spaces.
+        let font_size = 40.0;
+
+        let font =
+            std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf").expect("Works");
+        let font = Font::try_from_vec(font).unwrap();
+
+        let size = (
+            (font_size * (4 + 1) as f32) as u32,
+            (font_size * 2.0) as u32,
+        );
+
+        let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
+        drawables.push(((20, 20), String::from("a"), Rgb([255u8, 255u8, 255u8])));
+        drawables.push(((35, 20), String::from("b"), Rgb([255u8, 255u8, 255u8])));
+        drawables.push(((54, 20), String::from("e"), Rgb([255u8, 255u8, 255u8])));
+        drawables.push(((73, 20), String::from("z"), Rgb([255u8, 255u8, 255u8])));
+
+        let image = image_support::render_font_image(size, &font, font_size, &drawables);
+        let _ = image
+            .save(Path::new("dev_glyph_matcher_no_white_space.png"))
+            .unwrap();
+
+        let _ = image_support::filter_white(&image)
+            .save(Path::new("dev_glyph_matcher_no_white_space_white.png"))
+            .unwrap();
+
+        let image = image_support::rgb_image_to_view(&image);
+        let hist = image_to_simple_histogram(&image, RGB::white());
+        let binned = simple_histogram_to_bin_histogram(&hist);
+
+        let matches = bin_glyph_matcher(&binned, &glyph_set);
+        // println!("Histogram: {matches:?}");
+
+        for (i, v) in matches.iter().enumerate() {
+            println!("{i}: {v:?}");
+        }
     }
 }

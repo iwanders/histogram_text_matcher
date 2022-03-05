@@ -178,6 +178,10 @@ pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error
 /// Something that analyses an image with glyphs on it, creating the glyphset with histograms.
 pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> GlyphSet {
     let mut result: GlyphSet = Default::default();
+    let _ = image
+        .save(Path::new("dev_histogram_input.png"))
+        .unwrap();
+
 
     let filtered = filter_white(image);
     let _ = filtered
