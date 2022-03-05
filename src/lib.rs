@@ -1,8 +1,7 @@
-// use image::imageops::colorops::grayscale;
-// use image::{open, GenericImage, GenericImageView, Rgb, RgbImage};
-// use imageproc::map::map_colors;
-// use imageproc::rect::Rect;
-// use imageproc::rect::Region;
+
+// This is really nice, should adhere to this;
+// https://rust-lang.github.io/api-guidelines/naming.html
+
 
 pub mod glyphs;
 
@@ -63,7 +62,7 @@ fn histogram_glyph_matcher(
         let mut scores: Vec<ScoreType> = vec![];
         scores.resize(set.entries.len(), 0 as ScoreType);
         for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
-            *score = calc_score_min(&glyph.hist, &remainder, 10);
+            *score = calc_score_min(glyph.lstrip_hist(), &remainder, 10);
         }
         // println!("{scores:?}");
 
@@ -172,12 +171,13 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
-        let glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
-        let trimmed_set = glyphs::strip_glyph_set(&glyph_set);
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        glyph_set.prepare();
+
 
         println!("Histogram: {hist:?}");
 
-        let res = histogram_glyph_matcher(&hist, &trimmed_set);
+        let res = histogram_glyph_matcher(&hist, &glyph_set);
     }
 }
 

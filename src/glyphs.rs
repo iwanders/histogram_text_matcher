@@ -3,13 +3,57 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
 
+type HistogramValue = u8;
+
 /// Representation for a single glyph.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Glyph {
     /// Histogram used to identify this glyph.
-    pub hist: Vec<u8>,
+    pub hist: Vec<HistogramValue>,
+    /// Histogram with left zero's removed.
+    #[serde(skip)]
+    lstrip_hist: Vec<HistogramValue>,
     /// String representation to associate with the glyph, can contain multiple characters.
     pub glyph: String,
+}
+
+impl Glyph
+{
+
+    pub fn new(hist: &[HistogramValue], glyph: &str) -> Glyph
+    {
+        let mut z = Glyph {
+                hist: hist.to_vec(),
+                glyph: glyph.to_owned(),
+                lstrip_hist: vec![],
+            };
+        z.prepare();
+        z
+    }
+
+    pub fn prepare(&mut self)
+    {
+        let mut i = 0usize;
+        while self.hist[i] == 0 && i < self.hist.len()
+        {
+            i += 1;
+        }
+        self.lstrip_hist = self.hist[i..].to_vec();
+    }
+
+    pub fn hist(&self) -> &[HistogramValue]
+    {
+        &self.hist
+    }
+
+    pub fn lstrip_hist(&self) -> &[HistogramValue]
+    {
+        &self.lstrip_hist
+    }
+    pub fn glyph(&self) -> &str
+    {
+        &self.glyph
+    }
 }
 
 /// GlyphSet holds a collection of glyphs and associated data.
@@ -26,15 +70,16 @@ pub struct GlyphSet {
     pub name: String,
 }
 
-/// String whitespace from a glyph set.
-pub fn strip_glyph_set(set: &GlyphSet) -> GlyphSet
+
+impl GlyphSet
 {
-    let mut res = set.clone();
-    for glyph in res.entries.iter_mut()
+    pub fn prepare(&mut self)
     {
-        glyph.hist = glyph.hist.drain(..).filter(|x| { *x != 0 }).collect::<Vec<u8>>();
+        for entry in self.entries.iter_mut()
+        {
+            entry.prepare();
+        }
     }
-    res
 }
 
 /// Load a glyph set from a json file.
@@ -47,6 +92,7 @@ pub fn load_glyph_set(path: &str) -> Result<GlyphSet, Box<dyn std::error::Error>
     let mut file = File::open(path)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
-    let p: GlyphSet = serde_json::from_str(&content)?;
+    let mut p: GlyphSet = serde_json::from_str(&content)?;
+    p.prepare();
     Ok(p)
 }
