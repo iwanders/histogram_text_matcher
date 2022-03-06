@@ -41,7 +41,6 @@ fn main() {
         only_line,
         &out_dir.as_deref(),
     );
-    let j = serde_json::to_string(&glyph_set).expect("will succeed");
 
     histogram_text_matcher::glyphs::write_glyph_set(
         &Path::new(out_dir.as_ref().unwrap()).join("glyph_set.json"),
@@ -55,5 +54,5 @@ fn main() {
     )
     .expect("writing should succeed");
 
-    println!("{j}");
+    println!("Please inspect {} for the output files.", out_dir.as_ref().unwrap());
 }
