@@ -324,6 +324,12 @@ impl Rect {
     pub fn right(&self) -> u32 {
         self.x + self.w
     }
+    pub fn width(&self) -> u32 {
+        self.w
+    }
+    pub fn height(&self) -> u32 {
+        self.h
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -365,7 +371,6 @@ fn finalize_considerations<'a>(
         res_final.push(res_consider.pop_front().unwrap());
     }
 }
-
 
 // Helper to decide on matches.
 fn decide_on_matches<'a>(
@@ -426,20 +431,32 @@ fn decide_on_matches<'a>(
                 .drain(..)
                 .filter(|m| {
                     if m.location.overlaps(&this_block_region) {
-                        if do_insert == false
-                        {
+                        if do_insert == false {
                             return true; // already discarded current glyph.
                         }
 
                         // We overlap, and the current glyph sequence is still under consideration;
                         // Decide if better, more matching pixels is better:
-                        let current = glyphs.iter().map(|z| { if let Token::Glyph{glyph, ..} =  z.token {glyph.total()} else { 0 } }).fold(0, |x, a| { x + a});
-                        let mlen = m.tokens.iter().map(|z| { z.glyph.total() }).fold(0, |x, a| { x + a});
+                        let current = glyphs
+                            .iter()
+                            .map(|z| {
+                                if let Token::Glyph { glyph, .. } = z.token {
+                                    glyph.total()
+                                } else {
+                                    0
+                                }
+                            })
+                            .fold(0, |x, a| x + a);
+                        let mlen = m
+                            .tokens
+                            .iter()
+                            .map(|z| z.glyph.total())
+                            .fold(0, |x, a| x + a);
                         let new_is_better = current >= mlen;
 
                         if !new_is_better {
                             // new is not better than what we have
-                            do_insert = false;  // ensure we don't insert.
+                            do_insert = false; // ensure we don't insert.
                             return true; // keep old
                         } else {
                             return false; // drop old.
@@ -449,15 +466,13 @@ fn decide_on_matches<'a>(
                 })
                 .collect::<_>();
 
-
             // print!("y: {y} -> ");
             // print_match_slice(glyphs);
             // print!(" @  {this_block_region:?}   ");
             // print!("   -> {do_insert:?}");
             // println!();
 
-
-            if do_insert  {
+            if do_insert {
                 // we pruned boxes, so the new one must be better.
                 res_consider.push_back(Match2D {
                     tokens: glyphs
@@ -474,7 +489,6 @@ fn decide_on_matches<'a>(
                     location: this_block_region,
                 });
             }
-
 
             match_index += glyphs.len();
         }
@@ -515,9 +529,9 @@ pub fn moving_windowed_histogram<'a>(
         // println!("{histogram:?}");
         // if y == 696
         // {
-            // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
-            // println!("y: {y} -> {simple_hist:?}");
-            // println!("y: {y} -> {res_consider:?}");
+        // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
+        // println!("y: {y} -> {simple_hist:?}");
+        // println!("y: {y} -> {res_consider:?}");
         // }
 
         // Find glyphs in the histogram.
@@ -711,13 +725,12 @@ mod tests {
     #[test]
     fn histogram_matcher_real() {
         // Somehow... this fails :\
-        let s1 : Vec<u8> = vec![0, 0, 13, 13, 1, 1, 3, 4, 5, 3, 0];
-        let s2 : Vec<u8> = vec![0,5,3,2,3,2,2,2,3,2,4,0,0];
-        let s3 : Vec<u8> = vec![0,0,11,2,2,2,2,2,2,0];
-        let s4 : Vec<u8> = vec![0,1,1,1,1,10,10,1,1,1,1,1,0];
-        let s5 : Vec<u8> = vec![0,0,4,2,0,1,3,2,0];
-        let s6 : Vec<u8> = vec![0,0,1,0,0,0,0,0];
-
+        let s1: Vec<u8> = vec![0, 0, 13, 13, 1, 1, 3, 4, 5, 3, 0];
+        let s2: Vec<u8> = vec![0, 5, 3, 2, 3, 2, 2, 2, 3, 2, 4, 0, 0];
+        let s3: Vec<u8> = vec![0, 0, 11, 2, 2, 2, 2, 2, 2, 0];
+        let s4: Vec<u8> = vec![0, 1, 1, 1, 1, 10, 10, 1, 1, 1, 1, 1, 0];
+        let s5: Vec<u8> = vec![0, 0, 4, 2, 0, 1, 3, 2, 0];
+        let s6: Vec<u8> = vec![0, 0, 1, 0, 0, 0, 0, 0];
 
         let mut glyph_set: glyphs::GlyphSet = Default::default();
         glyph_set.entries.push(glyphs::Glyph::new(&s1, &"s1"));
@@ -729,22 +742,19 @@ mod tests {
         glyph_set.prepare();
         println!("GLyph set: {glyph_set:?}");
 
-
         let mut input: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         input.extend(s1);
-        input.extend(vec![ 0, 0, 0, 0, 0]);
+        input.extend(vec![0, 0, 0, 0, 0]);
         input.extend(s2);
-        input.extend(vec![  0, 0, 0,]);
+        input.extend(vec![0, 0, 0]);
         input.extend(s3);
-        input.extend(vec![  0, 0]);
+        input.extend(vec![0, 0]);
         input.extend(s4);
-        input.extend(vec![  0]);
+        input.extend(vec![0]);
         input.extend(s5);
-        input.extend(vec![ 0, 0, 0, 0, 0]);
+        input.extend(vec![0, 0, 0, 0, 0]);
         input.extend(s6);
-        input.extend(vec![ 0, 0, 0, 0, 0]);
-
-
+        input.extend(vec![0, 0, 0, 0, 0]);
 
         let binned = simple_histogram_to_bin_histogram(&input);
 
@@ -768,6 +778,5 @@ mod tests {
         let m = decide_on_matches(0, glyph_set.line_height as u32, &matches, &mut res_consider);
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
-
     }
 }

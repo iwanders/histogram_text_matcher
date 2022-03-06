@@ -8,9 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = std::env::args()
         .nth(1)
         .expect("No glyph set file specified.");
-    let output_path = std::env::args()
-        .nth(2)
-        .expect("No output file specified.");
+    let output_path = std::env::args().nth(2).expect("No output file specified.");
 
     let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&PathBuf::from(&file_path))?;
 

@@ -54,5 +54,8 @@ fn main() {
     )
     .expect("writing should succeed");
 
-    println!("Please inspect {} for the output files.", out_dir.as_ref().unwrap());
+    println!(
+        "Please inspect {} for the output files.",
+        out_dir.as_ref().unwrap()
+    );
 }

@@ -42,11 +42,10 @@ impl Glyph {
         }
         self.lstrip_hist = self.hist[i..].to_vec();
 
-        self.total = self.hist.iter().fold(0u32, |x, a| { x + *a as u32   });
+        self.total = self.hist.iter().fold(0u32, |x, a| x + *a as u32);
     }
 
-    pub fn total(&self) -> u32
-    {
+    pub fn total(&self) -> u32 {
         self.total
     }
 
@@ -109,22 +108,21 @@ pub fn load_glyph_set(input_path: &PathBuf) -> Result<GlyphSet, Box<dyn std::err
     Ok(p)
 }
 
-pub fn to_yaml_string(set: &GlyphSet) -> String
-{
+pub fn to_yaml_string(set: &GlyphSet) -> String {
     let mut s = String::new();
     s.push_str(&format!("name: \"{}\"\n", set.name));
     s.push_str(&format!("line_height: {}\n", set.line_height));
     if !set.entries.is_empty() {
         s.push_str(&format!("entries:\n"));
-        for entry in set.entries.iter()
-        {
+        for entry in set.entries.iter() {
             s.push_str(&format!("  -\n"));
             s.push_str(&format!("    glyph: \"{}\"\n", entry.glyph));
-            s.push_str(&format!("    hist: {}\n", serde_json::to_string(&entry.hist).unwrap()));
+            s.push_str(&format!(
+                "    hist: {}\n",
+                serde_json::to_string(&entry.hist).unwrap()
+            ));
         }
-    }
-    else
-    {
+    } else {
         s.push_str(&format!("entries: []\n"));
     }
     s
@@ -161,8 +159,6 @@ pub fn write_glyph_set(
     Ok(())
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,8 +176,16 @@ mod tests {
         let mut set: GlyphSet = Default::default();
         set.name = String::from("lkdsjflds");
         set.line_height = 137;
-        set.entries.push(Glyph{hist: vec![1, 2, 3, 4], glyph: String::from(" a"), ..Default::default()});
-        set.entries.push(Glyph{hist: vec![1, 3], glyph: String::from("ba"), ..Default::default()});
+        set.entries.push(Glyph {
+            hist: vec![1, 2, 3, 4],
+            glyph: String::from(" a"),
+            ..Default::default()
+        });
+        set.entries.push(Glyph {
+            hist: vec![1, 3],
+            glyph: String::from("ba"),
+            ..Default::default()
+        });
         let as_yaml = to_yaml_string(&set);
         let res: GlyphSet = serde_yaml::from_str(&as_yaml).unwrap();
         assert_eq!(res, set);
