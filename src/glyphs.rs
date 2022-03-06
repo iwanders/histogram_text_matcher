@@ -29,11 +29,14 @@ impl Glyph {
     }
 
     pub fn prepare(&mut self) {
-        let mut i = 0usize;
-        while self.hist[i] == 0 && i < self.hist.len() {
-            i += 1;
+        if let Some(stripped) = self.hist.strip_prefix(&[0])
+        {
+            self.lstrip_hist = stripped.to_vec();
         }
-        self.lstrip_hist = self.hist[i..].to_vec();
+        else
+        {
+            self.lstrip_hist = self.hist.clone();
+        }
     }
 
     pub fn hist(&self) -> &[HistogramValue] {

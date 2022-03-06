@@ -208,8 +208,9 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
 
         // CONSIDER: Splitting the histogram by labels at the start, then match on the labels.
         // Next, make sure we only match the label found in the first bin.
-        let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
-        let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
+        // This is problematic... Since space between letters may not have the label set.
+        // let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
+        // let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
 
         // Let us check all the glyphs and determine which one has the lowest score.
 
@@ -625,7 +626,7 @@ mod tests {
         let image = image_support::rgb_image_to_view(&image);
         // let labels = vec![(RGB::white(), 0), (RGB::red(), 0)];
         // let labels = vec![(RGB::white(), 0), (RGB::red(), 1)]; // this breaks
-        let labels = vec![(RGB::white(), 1), (RGB::red(), 0)]; // this breaks
+        let labels = vec![(RGB::white(), 0), (RGB::red(), 1)]; // this breaks
 
         let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
         for m in matches.iter() {
