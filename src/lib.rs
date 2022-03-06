@@ -330,6 +330,121 @@ pub struct Match2D<'a> {
     location: Rect,
 }
 
+
+use std::collections::VecDeque;
+// Helper to add a row
+fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
+    for (color, index) in labels.iter() {
+        if color == p {
+            histogram[x].count += 1;
+            histogram[x].label = *index;
+            return;
+        }
+    }
+}
+
+// Helper to subtract a row.
+fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
+    for (color, index) in labels.iter() {
+        if color == p {
+            histogram[x].count = histogram[x].count.saturating_sub(1);
+            return;
+        }
+    }
+}
+
+// Helper to accept or discard matches to consider
+fn finalize_considerations<'a>(y: u32, res_consider: &mut VecDeque<Match2D<'a>>, res_final: &mut Vec<Match2D<'a>>)
+{
+    while !res_consider.is_empty() && res_consider.front().unwrap().location.top() < y {
+        res_final.push(res_consider.pop_front().unwrap());
+    }
+}
+
+// Helper to decide on matches.
+fn decide_on_matches<'a>(y: u32, window_size: u32, matches: &[Match<'a>], res_consider: &mut VecDeque<Match2D<'a>>)
+{
+    // Matches are 1D matches, we want consecutive glyph blocks.
+    // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
+    // with stable for now.
+
+    // So, whitespace in matches, which delimit the consecutive glyph blocks.
+    let mut match_index: usize = 0;
+    while match_index < matches.len() {
+        if let Token::WhiteSpace(_) = matches[match_index].token {
+            match_index += 1;
+            continue;
+        }
+
+        if let Token::Glyph {
+            glyph,
+            label,
+            error,
+        } = matches[match_index].token
+        {
+            // Find the index where this consecutive glyph block ends.
+            let block_end = matches[match_index..]
+                .iter()
+                .position(|z| {
+                    std::mem::discriminant(&z.token)
+                        == std::mem::discriminant(&Token::WhiteSpace(0))
+                })
+                .unwrap_or(matches.len());
+            // println!("block_end  {block_end}");
+            let glyphs = &matches[match_index..match_index + block_end];
+            let first_glyph = glyphs.first().expect("never empty");
+            let last_glyph = glyphs.last().expect("never empty");
+
+            // print!("y: {y} -> ");
+            // print_match_slice(glyphs);
+            // println!();
+
+            let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
+            let this_block_region = Rect {
+                x: first_glyph.position,
+                y,
+                w: block_width,
+                h: window_size,
+            };
+
+            // Check if this overlaps with others in the consideration buffer;
+            let mut do_insert = true;
+            *res_consider = res_consider
+                .drain(..)
+                .filter(|m| {
+                    if m.location.overlaps(&this_block_region) {
+                        if glyphs.len() < m.tokens.len() {
+                            do_insert = false; // already existing overlap is better.
+                        } else {
+                            return false; // yes, this is an upgrade, drop from res_consider
+                        }
+                    }
+                    return true;
+                })
+                .collect::<_>();
+
+            if do_insert {
+                // we pruned boxes, so the new one must be better.
+                res_consider.push_back(Match2D {
+                    tokens: glyphs
+                        .iter()
+                        .map(|z| match z.token {
+                            Token::Glyph {
+                                glyph,
+                                label,
+                                error,
+                            } => LabelledGlyph { glyph, label },
+                            _ => panic!("should never have whitespace here"),
+                        })
+                        .collect::<_>(),
+                    location: this_block_region,
+                });
+            }
+            match_index += glyphs.len();
+        }
+    }
+}
+
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
     set: &'a glyphs::GlyphSet,
@@ -339,7 +454,6 @@ pub fn moving_windowed_histogram<'a>(
 
     // Container for results under consideration, we check matches against overlap in this window
     // and keep the parts that are the best matches.
-    use std::collections::VecDeque;
     let mut res_consider: VecDeque<Match2D<'a>> = VecDeque::new();
     // Once the matches here move out of the window, we move them to res itself.
 
@@ -351,26 +465,6 @@ pub fn moving_windowed_histogram<'a>(
     // Then, we iterate down, at the bottom of the window add to the histogram
     // and the top row that moves out we subtract.
 
-    // Helper to add a row
-    fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
-        for (color, index) in labels.iter() {
-            if color == p {
-                histogram[x].count += 1;
-                histogram[x].label = *index;
-                return;
-            }
-        }
-    }
-
-    // Helper to subtract a row.
-    fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
-        for (color, index) in labels.iter() {
-            if color == p {
-                histogram[x].count = histogram[x].count.saturating_sub(1);
-                return;
-            }
-        }
-    }
 
     // Let us first, setup the first histogram, this is from 0 to window size.
     for y in 0..window_size {
@@ -387,91 +481,14 @@ pub fn moving_windowed_histogram<'a>(
         // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
         // println!("y: {y} -> {simple_hist:?}");
 
+        // Find glyphs in the histogram.
         let matches = bin_glyph_matcher(&histogram, &set);
-        // Matches are 1D matches, we want consecutive glyph blocks.
-        // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
-        // with stable for now.
 
-        // So, whitespace in matches, which delimit the consecutive glyph blocks.
-        let mut match_index: usize = 0;
-        while match_index < matches.len() {
-            if let Token::WhiteSpace(_) = matches[match_index].token {
-                match_index += 1;
-                continue;
-            }
-
-            if let Token::Glyph {
-                glyph,
-                label,
-                error,
-            } = matches[match_index].token
-            {
-                // Find the index where this consecutive glyph block ends.
-                let block_end = matches[match_index..]
-                    .iter()
-                    .position(|z| {
-                        std::mem::discriminant(&z.token)
-                            == std::mem::discriminant(&Token::WhiteSpace(0))
-                    })
-                    .unwrap_or(matches.len());
-                // println!("block_end  {block_end}");
-                let glyphs = &matches[match_index..match_index + block_end];
-                let first_glyph = glyphs.first().expect("never empty");
-                let last_glyph = glyphs.last().expect("never empty");
-
-                // print!("y: {y} -> ");
-                // print_match_slice(glyphs);
-                // println!();
-
-                let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
-                let this_block_region = Rect {
-                    x: first_glyph.position,
-                    y,
-                    w: block_width,
-                    h: window_size,
-                };
-
-                // Check if this overlaps with others in the consideration buffer;
-                let mut do_insert = true;
-                res_consider = res_consider
-                    .drain(..)
-                    .filter(|m| {
-                        if m.location.overlaps(&this_block_region) {
-                            if glyphs.len() < m.tokens.len() {
-                                do_insert = false; // already existing overlap is better.
-                            } else {
-                                return false; // yes, this is an upgrade, drop from res_consider
-                            }
-                        }
-                        return true;
-                    })
-                    .collect::<_>();
-
-                if do_insert {
-                    // we pruned boxes, so the new one must be better.
-                    res_consider.push_back(Match2D {
-                        tokens: glyphs
-                            .iter()
-                            .map(|z| match z.token {
-                                Token::Glyph {
-                                    glyph,
-                                    label,
-                                    error,
-                                } => LabelledGlyph { glyph, label },
-                                _ => panic!("should never have whitespace here"),
-                            })
-                            .collect::<_>(),
-                        location: this_block_region,
-                    });
-                }
-                match_index += glyphs.len();
-            }
-        }
+        // Decide which matches are to be kept.
+        decide_on_matches(y, window_size, &matches, &mut res_consider);
 
         // Move matches from res_consider to res_final.
-        while !res_consider.is_empty() && res_consider.front().unwrap().location.top() < y {
-            res_final.push(res_consider.pop_front().unwrap());
-        }
+        finalize_considerations(y, &mut res_consider, &mut res_final);
 
         // Subtract from the side moving out of the histogram.
         for x in 0..image.width() {
