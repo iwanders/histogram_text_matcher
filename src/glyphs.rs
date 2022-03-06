@@ -52,7 +52,7 @@ impl Glyph {
 }
 
 /// GlyphSet holds a collection of glyphs and associated data.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct GlyphSet {
     /// List of glyphs that make up this set.
     pub entries: Vec<Glyph>,
@@ -99,6 +99,27 @@ pub fn load_glyph_set(input_path: &PathBuf) -> Result<GlyphSet, Box<dyn std::err
     Ok(p)
 }
 
+pub fn to_yaml_string(set: &GlyphSet) -> String
+{
+    let mut s = String::new();
+    s.push_str(&format!("name: \"{}\"\n", set.name));
+    s.push_str(&format!("line_height: {}\n", set.line_height));
+    if !set.entries.is_empty() {
+        s.push_str(&format!("entries:\n"));
+        for entry in set.entries.iter()
+        {
+            s.push_str(&format!("  -\n"));
+            s.push_str(&format!("    glyph: \"{}\"\n", entry.glyph));
+            s.push_str(&format!("    hist: {}\n", serde_json::to_string(&entry.hist).unwrap()));
+        }
+    }
+    else
+    {
+        s.push_str(&format!("entries: []\n"));
+    }
+    s
+}
+
 /// Write a glyph set to a file.
 pub fn write_glyph_set(
     output_path: &PathBuf,
@@ -115,7 +136,9 @@ pub fn write_glyph_set(
     if extension == "json" {
         s = serde_json::to_string(&set)?;
     } else if extension == "yaml" {
-        s = serde_yaml::to_string(&set)?;
+        // s = serde_yaml::to_string(&set)?;
+        // wow, that is unusable as the histogram gets newlines...
+        s = to_yaml_string(&set);
     } else {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -126,4 +149,31 @@ pub fn write_glyph_set(
     file.write(s.as_bytes())?;
 
     Ok(())
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_to_yaml_string_empty() {
+        let mut set: GlyphSet = Default::default();
+        set.name = String::from("");
+        set.line_height = 137;
+        let as_yaml = to_yaml_string(&set);
+        let res: GlyphSet = serde_yaml::from_str(&as_yaml).unwrap();
+        assert_eq!(res, set);
+    }
+    #[test]
+    fn test_to_yaml_string_with_glyphs() {
+        let mut set: GlyphSet = Default::default();
+        set.name = String::from("lkdsjflds");
+        set.line_height = 137;
+        set.entries.push(Glyph{hist: vec![1, 2, 3, 4], glyph: String::from(" a"), ..Default::default()});
+        set.entries.push(Glyph{hist: vec![1, 3], glyph: String::from("ba"), ..Default::default()});
+        let as_yaml = to_yaml_string(&set);
+        let res: GlyphSet = serde_yaml::from_str(&as_yaml).unwrap();
+        assert_eq!(res, set);
+    }
 }

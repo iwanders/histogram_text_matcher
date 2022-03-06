@@ -521,7 +521,7 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
 
         println!("Histogram: {hist:?}");
@@ -541,7 +541,7 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
 
         let binned = simple_histogram_to_bin_histogram(&hist);
@@ -561,7 +561,7 @@ mod tests {
         use std::path::Path;
 
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
 
         let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
@@ -600,7 +600,7 @@ mod tests {
     fn test_bin_glyph_matcher_no_white_space_moving() {
         println!();
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
         println!("glyph_set: {glyph_set:?}");
 
@@ -624,7 +624,7 @@ mod tests {
         println!();
 
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
 
         use image::Rgb;
