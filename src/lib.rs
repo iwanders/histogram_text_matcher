@@ -690,6 +690,7 @@ mod tests {
         glyph_set.entries.push(glyphs::Glyph::new(&s4, &"s4"));
         glyph_set.entries.push(glyphs::Glyph::new(&s5, &"s5"));
         glyph_set.prepare();
+        println!("GLyph set: {glyph_set:?}");
 
 
         let mut input: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -717,8 +718,8 @@ mod tests {
                 error,
             } = v.token
             {
-                // assert!(*glyph == glyph_set.entries[glyph_counter]);
-                // assert!(error == 0);
+                assert!(*glyph == glyph_set.entries[glyph_counter]);
+                assert!(error == 0);
                 glyph_counter += 1;
             }
         }
