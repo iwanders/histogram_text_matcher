@@ -38,3 +38,8 @@ required-features = ["image_support"]
 name = "dev_example_glyphs"
 path = "src/dev_example_glyphs.rs"
 required-features = ["image_support"]
+
+[[example]]
+name = "dev_scan_image"
+path = "src/dev_scan_image.rs"
+required-features = ["image_support"]

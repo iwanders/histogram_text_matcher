@@ -1,12 +1,18 @@
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
+use std::path::Path;
+use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = std::env::args()
         .nth(1)
-        .expect("No input argument specified.");
-    let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&file_path)?;
+        .expect("No glyph set file specified.");
+    let output_path = std::env::args()
+        .nth(2)
+        .expect("No output file specified.");
+
+    let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&PathBuf::from(&file_path))?;
 
     let line_offset: u32 = 10;
     let line_height = glyph_set.line_height as u32 + line_offset;
@@ -41,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             1.0,
         );
     }
-    let _ = image.save("dev_glyph_set_print.png").unwrap();
+    let _ = image.save(&output_path).unwrap();
 
     Ok(())
 }

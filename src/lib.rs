@@ -120,9 +120,9 @@ struct Bin {
 type ColorLabel = (RGB, usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct LabelledGlyph<'a> {
-    glyph: &'a glyphs::Glyph,
-    label: usize,
+pub struct LabelledGlyph<'a> {
+    pub glyph: &'a glyphs::Glyph,
+    pub label: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,9 +137,9 @@ enum Token<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Match<'a> {
-    token: Token<'a>,
-    position: u32,
-    width: u32,
+    pub token: Token<'a>,
+    pub position: u32,
+    pub width: u32,
 }
 
 fn print_match_slice<'a>(glyphs: &[Match<'a>]) {
@@ -292,7 +292,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Rect {
+pub struct Rect {
     pub x: u32,
     pub y: u32,
     pub w: u32,
@@ -324,8 +324,8 @@ impl Rect {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Match2D<'a> {
-    tokens: Vec<LabelledGlyph<'a>>,
-    location: Rect,
+    pub tokens: Vec<LabelledGlyph<'a>>,
+    pub location: Rect,
 }
 
 use std::collections::VecDeque;

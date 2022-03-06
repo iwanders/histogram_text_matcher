@@ -77,7 +77,6 @@ impl GlyphSet {
 pub fn load_glyph_set(input_path: &PathBuf) -> Result<GlyphSet, Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Read;
-    use std::path::PathBuf;
     let mut file = File::open(input_path)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;

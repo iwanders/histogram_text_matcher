@@ -1,6 +1,6 @@
 //! Functionality for the image_support feature
 use image::imageops::colorops::grayscale;
-use image::{GenericImage, GenericImageView, Rgb, RgbImage};
+use image::{Rgb, RgbImage};
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
 
