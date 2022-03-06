@@ -220,15 +220,26 @@ pub fn dev_create_example_glyphs_packed() -> Result<RgbImage, Box<dyn std::error
     Ok(render_font_image(size, &font, font_size, &drawables))
 }
 
+fn optionally_save_image(image: &RgbImage, out_dir: &Option<&str>, name: &str) {
+    if let Some(path) = out_dir {
+        image
+            .save(Path::new(path).join(Path::new(name)))
+            .expect("may not fail");
+    }
+}
+
 /// Something that analyses an image with glyphs on it, creating the glyphset with histograms.
-pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> GlyphSet {
+pub fn dev_image_to_glyph_set(
+    image: &RgbImage,
+    only_line: Option<usize>,
+    out_dir: &Option<&str>,
+) -> GlyphSet {
     let mut result: GlyphSet = Default::default();
-    let _ = image.save(Path::new("dev_histogram_input.png")).unwrap();
+
+    optionally_save_image(&image, out_dir, "dev_histogram_input.png");
 
     let filtered = filter_white(image);
-    let _ = filtered
-        .save(Path::new("dev_histogram_filter_white.png"))
-        .unwrap();
+    optionally_save_image(&filtered, out_dir, "dev_histogram_filter_white.png");
 
     let mut lines = line_splitter(image);
 
@@ -239,9 +250,7 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
         image_with_rect =
             imageproc::drawing::draw_hollow_rect(&image_with_rect, *b, Rgb([255u8, 0u8, 255u8]));
     }
-    let _ = image_with_rect
-        .save(Path::new("dev_histogram_lines.png"))
-        .unwrap();
+    optionally_save_image(&image_with_rect, out_dir, "dev_histogram_lines.png");
 
     if let Some(index) = only_line {
         lines = vec![lines[index]];
@@ -296,9 +305,8 @@ pub fn dev_image_to_glyph_set(image: &RgbImage, only_line: Option<usize>) -> Gly
                 .push(Glyph::new(&sub_img_histogram, &format!("{r}-{c}")));
         }
     }
-    let _ = image_with_rect
-        .save(Path::new("dev_histogram_boxes.png"))
-        .unwrap();
+    optionally_save_image(&image_with_rect, out_dir, "dev_histogram_boxes.png");
+
     result.prepare();
     result
 }

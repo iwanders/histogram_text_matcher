@@ -1,7 +1,10 @@
 //! Glyphs definition and helpers.
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use serde_json;
+use serde_yaml;
 
 type HistogramValue = u8;
 
@@ -29,12 +32,9 @@ impl Glyph {
     }
 
     pub fn prepare(&mut self) {
-        if let Some(stripped) = self.hist.strip_prefix(&[0])
-        {
+        if let Some(stripped) = self.hist.strip_prefix(&[0]) {
             self.lstrip_hist = stripped.to_vec();
-        }
-        else
-        {
+        } else {
             self.lstrip_hist = self.hist.clone();
         }
     }
@@ -74,16 +74,56 @@ impl GlyphSet {
 }
 
 /// Load a glyph set from a json file.
-pub fn load_glyph_set(path: &str) -> Result<GlyphSet, Box<dyn std::error::Error>> {
-    use std::path::PathBuf;
-    let path = PathBuf::from(path);
-    let _res: GlyphSet;
+pub fn load_glyph_set(input_path: &PathBuf) -> Result<GlyphSet, Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Read;
-    let mut file = File::open(path)?;
+    use std::path::PathBuf;
+    let mut file = File::open(input_path)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
-    let mut p: GlyphSet = serde_json::from_str(&content)?;
+
+    let extension = input_path.extension().expect("should have an extension");
+
+    let mut p: GlyphSet;
+    if extension == "json" {
+        p = serde_json::from_str(&content)?;
+    } else if extension == "yaml" {
+        p = serde_yaml::from_str(&content)?;
+    } else {
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Unknown type",
+        )));
+    }
     p.prepare();
     Ok(p)
+}
+
+/// Write a glyph set to a file.
+pub fn write_glyph_set(
+    output_path: &PathBuf,
+    set: &GlyphSet,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::File;
+    use std::io::Write;
+
+    // https://doc.rust-lang.org/std/path/struct.Path.html#method.ends_with
+    // Yikes, that's a footgun.
+
+    let extension = output_path.extension().expect("should have an extension");
+    let s;
+    if extension == "json" {
+        s = serde_json::to_string(&set)?;
+    } else if extension == "yaml" {
+        s = serde_yaml::to_string(&set)?;
+    } else {
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Unknown type: {:?}", output_path),
+        )));
+    }
+    let mut file = File::create(output_path)?;
+    file.write(s.as_bytes())?;
+
+    Ok(())
 }

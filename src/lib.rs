@@ -17,7 +17,6 @@ pub mod image_support;
 #[cfg(test)]
 pub mod image_support;
 
-
 /*
     Improvements:
         - Currently, a space character would be greedy and match until end of line.
@@ -143,14 +142,18 @@ struct Match<'a> {
     width: u32,
 }
 
-fn print_match_slice<'a>(glyphs: &[Match<'a>])
-{
-    for t in glyphs.iter()
-    {
-        match &t.token
-        {
+fn print_match_slice<'a>(glyphs: &[Match<'a>]) {
+    for t in glyphs.iter() {
+        match &t.token {
             Token::WhiteSpace(w) => print!(" w{w}"),
-            Token::Glyph{glyph, label, error} => {let s = glyph.glyph(); print!(" {}#{label}", s)},
+            Token::Glyph {
+                glyph,
+                label,
+                error,
+            } => {
+                let s = glyph.glyph();
+                print!(" {}#{label}", s)
+            }
         }
     }
 }
@@ -254,12 +257,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
             if score == 0 {
                 // Calculate the true position, depends on whether we used stripped values.
                 let first_non_zero = found_glyph.hist().len() - found_glyph.lstrip_hist().len();
-                let position = i as u32
-                    - if use_stripped {
-                        first_non_zero
-                    } else {
-                        0
-                    } as u32;
+                let position = i as u32 - if use_stripped { first_non_zero } else { 0 } as u32;
                 // Position where histogram where this letter has the first non-zero;
                 let label_position = position as usize + first_non_zero;
 
@@ -330,8 +328,8 @@ pub struct Match2D<'a> {
     location: Rect,
 }
 
-
 use std::collections::VecDeque;
+
 // Helper to add a row
 fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
     for (color, index) in labels.iter() {
@@ -354,16 +352,23 @@ fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>)
 }
 
 // Helper to accept or discard matches to consider
-fn finalize_considerations<'a>(y: u32, res_consider: &mut VecDeque<Match2D<'a>>, res_final: &mut Vec<Match2D<'a>>)
-{
+fn finalize_considerations<'a>(
+    y: u32,
+    res_consider: &mut VecDeque<Match2D<'a>>,
+    res_final: &mut Vec<Match2D<'a>>,
+) {
     while !res_consider.is_empty() && res_consider.front().unwrap().location.top() < y {
         res_final.push(res_consider.pop_front().unwrap());
     }
 }
 
 // Helper to decide on matches.
-fn decide_on_matches<'a>(y: u32, window_size: u32, matches: &[Match<'a>], res_consider: &mut VecDeque<Match2D<'a>>)
-{
+fn decide_on_matches<'a>(
+    y: u32,
+    window_size: u32,
+    matches: &[Match<'a>],
+    res_consider: &mut VecDeque<Match2D<'a>>,
+) {
     // Matches are 1D matches, we want consecutive glyph blocks.
     // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
     // with stable for now.
@@ -464,7 +469,6 @@ pub fn moving_windowed_histogram<'a>(
     // Start at the top, with zero width, then we sum rows for the window size
     // Then, we iterate down, at the bottom of the window add to the histogram
     // and the top row that moves out we subtract.
-
 
     // Let us first, setup the first histogram, this is from 0 to window size.
     for y in 0..window_size {
@@ -633,7 +637,8 @@ mod tests {
 
         let size = (500, 500);
 
-        let mut drawables = image_support::dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
+        let mut drawables =
+            image_support::dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
         drawables.extend(image_support::dev_example_glyphs_packed(
             100,
             15,
@@ -646,14 +651,14 @@ mod tests {
                 "dev_glyph_matcher_no_white_space_moving_multiple.png",
             ))
             .unwrap();
-        let _ = image_support::filter_primary(&image).save(Path::new(
+        let _ = image_support::filter_primary(&image)
+            .save(Path::new(
                 "dev_glyph_matcher_no_white_space_moving_multiple_primary.png",
             ))
             .unwrap();
 
         let image = image_support::rgb_image_to_view(&image);
         let labels = vec![(RGB::white(), 0), (RGB::red(), 1)];
-
 
         let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
         for m in matches.iter() {

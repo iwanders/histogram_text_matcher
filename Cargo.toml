@@ -10,6 +10,7 @@ incremental=true
 [dependencies]
 serde = {version="1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.8"
 
 imageproc = {version = "0.22.0", optional=true}
 image = { version = "0.23.6", optional=true}
