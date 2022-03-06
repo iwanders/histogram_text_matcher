@@ -400,9 +400,9 @@ fn decide_on_matches<'a>(
             let first_glyph = glyphs.first().expect("never empty");
             let last_glyph = glyphs.last().expect("never empty");
 
-            // print!("y: {y} -> ");
-            // print_match_slice(glyphs);
-            // println!();
+            print!("y: {y} -> ");
+            print_match_slice(glyphs);
+            println!();
 
             let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
             let this_block_region = Rect {
@@ -418,6 +418,23 @@ fn decide_on_matches<'a>(
                 .drain(..)
                 .filter(|m| {
                     if m.location.overlaps(&this_block_region) {
+                        // decide if better, if equal length, use the histogram length.
+                        let is_better;
+                        // if glyphs.len() == m.tokens.len()
+                        // {
+                            // let current = glyphs.iter().map(|z| { if let Token::Glyph{glyph, ..} =  z.token {glyph.hist().len()} else { 0 } }).fold(0, |x, a| { x + a});
+                            // let mlen = m.tokens.iter().map(|z| { z.glyph.hist().len() }).fold(0, |x, a| { x + a});
+                            // is_better = current > mlen;
+                        // }
+                        // else
+                        if glyphs.len() < m.tokens.len()
+                        {
+                            is_better = false;
+                        }
+                        else
+                        {
+                            is_better = true;
+                        }
                         if glyphs.len() < m.tokens.len() {
                             do_insert = false; // already existing overlap is better.
                         } else {
