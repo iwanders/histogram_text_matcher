@@ -18,6 +18,9 @@ pub struct Glyph {
     lstrip_hist: Vec<HistogramValue>,
     /// String representation to associate with the glyph, can contain multiple characters.
     glyph: String,
+
+    #[serde(skip)]
+    total: u32,
 }
 
 impl Glyph {
@@ -26,6 +29,7 @@ impl Glyph {
             hist: hist.to_vec(),
             glyph: glyph.to_owned(),
             lstrip_hist: vec![],
+            total: 0,
         };
         z.prepare();
         z
@@ -37,6 +41,13 @@ impl Glyph {
             i += 1;
         }
         self.lstrip_hist = self.hist[i..].to_vec();
+
+        self.total = self.hist.iter().fold(0u32, |x, a| { x + *a as u32   });
+    }
+
+    pub fn total(&self) -> u32
+    {
+        self.total
     }
 
     pub fn hist(&self) -> &[HistogramValue] {

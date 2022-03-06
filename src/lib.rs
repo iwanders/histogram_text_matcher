@@ -24,6 +24,10 @@ pub mod image_support;
           perform strip on the glyph sequence afterwards.
         - Token matcher can't split based on the labels, because the histogram may have labels
           in between glyphs that weren't colored appropriately. Search for CONSIDER_MATCH_LABEL.
+
+    Current issues:
+        - Need a way to deal with non-perfect GlyphSet objects... disregard whitespace < N
+        - Current decider is problematic?
 */
 
 /// Function to match a single color in an image and convert this to a histogram.
@@ -362,6 +366,7 @@ fn finalize_considerations<'a>(
     }
 }
 
+
 // Helper to decide on matches.
 fn decide_on_matches<'a>(
     y: u32,
@@ -400,10 +405,6 @@ fn decide_on_matches<'a>(
             let first_glyph = glyphs.first().expect("never empty");
             let last_glyph = glyphs.last().expect("never empty");
 
-            print!("y: {y} -> ");
-            print_match_slice(glyphs);
-            println!();
-
             let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
             let this_block_region = Rect {
                 x: first_glyph.position,
@@ -412,40 +413,62 @@ fn decide_on_matches<'a>(
                 h: window_size,
             };
 
+            // Now, we need to decide whether this block of glyphs is better than the ones currently
+            // in res_consider.
+
+            // Options:
+            //   - No overlap, always add this glyph.
+            //   - Overlap, decide which glyph is the best, remove the other.
+
             // Check if this overlaps with others in the consideration buffer;
             let mut do_insert = true;
             *res_consider = res_consider
                 .drain(..)
                 .filter(|m| {
                     if m.location.overlaps(&this_block_region) {
-                        // decide if better, if equal length, use the histogram length.
-                        let is_better;
+                        if do_insert == false
+                        {
+                            return true; // keep this.
+                        }
+
+                        // We overlap, and the current glyph sequence is still under consideration;
+                        // Decide if better, if equal length, use the histogram length.
+                        let new_is_better;
                         // if glyphs.len() == m.tokens.len()
+                        {
+                            let current = glyphs.iter().map(|z| { if let Token::Glyph{glyph, ..} =  z.token {glyph.total()} else { 0 } }).fold(0, |x, a| { x + a});
+                            let mlen = m.tokens.iter().map(|z| { z.glyph.total() }).fold(0, |x, a| { x + a});
+                            new_is_better = current >= mlen;
+                        }
+                        // else
+                        // if glyphs.len() > m.tokens.len()
                         // {
-                            // let current = glyphs.iter().map(|z| { if let Token::Glyph{glyph, ..} =  z.token {glyph.hist().len()} else { 0 } }).fold(0, |x, a| { x + a});
-                            // let mlen = m.tokens.iter().map(|z| { z.glyph.hist().len() }).fold(0, |x, a| { x + a});
-                            // is_better = current > mlen;
+                            // new_is_better = true;
                         // }
                         // else
-                        if glyphs.len() < m.tokens.len()
-                        {
-                            is_better = false;
-                        }
-                        else
-                        {
-                            is_better = true;
-                        }
-                        if glyphs.len() < m.tokens.len() {
-                            do_insert = false; // already existing overlap is better.
+                        // {
+                            // new_is_better = false;
+                        // }
+                        if !new_is_better {
+                            do_insert = false;
+                            return true; // keep old
                         } else {
-                            return false; // yes, this is an upgrade, drop from res_consider
+                            return false; // drop old.
                         }
                     }
-                    return true;
+                    return true; // no overlap, always keep.
                 })
                 .collect::<_>();
 
-            if do_insert {
+
+            print!("y: {y} -> ");
+            print_match_slice(glyphs);
+            print!(" @  {this_block_region:?}   ");
+            print!("   -> {do_insert:?}");
+            println!();
+
+
+            if do_insert  {
                 // we pruned boxes, so the new one must be better.
                 res_consider.push_back(Match2D {
                     tokens: glyphs
@@ -462,6 +485,8 @@ fn decide_on_matches<'a>(
                     location: this_block_region,
                 });
             }
+
+
             match_index += glyphs.len();
         }
     }
@@ -499,8 +524,12 @@ pub fn moving_windowed_histogram<'a>(
         // Here, we match the current histogram, and store matches.
 
         // println!("{histogram:?}");
-        // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
-        // println!("y: {y} -> {simple_hist:?}");
+        if y == 696
+        {
+            let simple_hist = bin_histogram_to_simple_histogram(&histogram);
+            println!("y: {y} -> {simple_hist:?}");
+            println!("y: {y} -> {res_consider:?}");
+        }
 
         // Find glyphs in the histogram.
         let matches = bin_glyph_matcher(&histogram, &set);
@@ -698,6 +727,7 @@ mod tests {
         let s3 : Vec<u8> = vec![0,0,11,2,2,2,2,2,2,0];
         let s4 : Vec<u8> = vec![0,1,1,1,1,10,10,1,1,1,1,1,0];
         let s5 : Vec<u8> = vec![0,0,4,2,0,1,3,2,0];
+        let s6 : Vec<u8> = vec![0,0,1,0,0,0,0,0];
 
 
         let mut glyph_set: glyphs::GlyphSet = Default::default();
@@ -706,6 +736,7 @@ mod tests {
         glyph_set.entries.push(glyphs::Glyph::new(&s3, &"s3"));
         glyph_set.entries.push(glyphs::Glyph::new(&s4, &"s4"));
         glyph_set.entries.push(glyphs::Glyph::new(&s5, &"s5"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s6, &"s6"));
         glyph_set.prepare();
         println!("GLyph set: {glyph_set:?}");
 
@@ -721,6 +752,9 @@ mod tests {
         input.extend(vec![  0]);
         input.extend(s5);
         input.extend(vec![ 0, 0, 0, 0, 0]);
+        input.extend(s6);
+        input.extend(vec![ 0, 0, 0, 0, 0]);
+
 
 
         let binned = simple_histogram_to_bin_histogram(&input);
@@ -740,5 +774,11 @@ mod tests {
                 glyph_counter += 1;
             }
         }
+        let mut res_consider: VecDeque<Match2D> = Default::default();
+
+        let m = decide_on_matches(0, glyph_set.line_height as u32, &matches, &mut res_consider);
+        assert_eq!(res_consider.len(), 6);
+        println!("res_consider: {res_consider:?}");
+
     }
 }
