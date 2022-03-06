@@ -291,7 +291,7 @@ pub fn dev_image_to_glyph_set(
             draw_histogram_mut_xy_a(
                 &mut image_with_rect,
                 z.left() as u32,
-                b.bottom() as u32 - 1,
+                b.bottom() as u32 - if b.bottom() > 1 { 1 } else { 0 },
                 &sub_img_histogram,
                 Rgb([255u8, 0u8, 0u8]),
                 0.5,

@@ -394,7 +394,7 @@ fn decide_on_matches<'a>(
                     std::mem::discriminant(&z.token)
                         == std::mem::discriminant(&Token::WhiteSpace(0))
                 })
-                .unwrap_or(matches.len());
+                .unwrap_or(matches.len() - match_index);
             // println!("block_end  {block_end}");
             let glyphs = &matches[match_index..match_index + block_end];
             let first_glyph = glyphs.first().expect("never empty");
