@@ -34,8 +34,7 @@ fn make_html<'a>(
             "#{} {{ left: {}px; top: {}px; width: {}px; height: {}px; }}\n",
             &name, l, t, w, h
         ));
-        css.push_str(&format!("#{} {{ border: 1px solid red; }}\n", &name));
-        css.push_str(&format!("#{}:hover  {{ opacity:0.2; }}\n", &name));
+
 
         // Constant to display on mouse over.
         code.push_str(&format!(
@@ -61,8 +60,13 @@ fn make_html<'a>(
         .area {{
             display:block;
             position:absolute;
-            font-color: green;
+            border: 1px solid red;
         }}
+
+        .area:hover {{ 
+            border: 1px solid green;
+        }}
+
         {}
 
         .theimage {{
