@@ -428,44 +428,33 @@ fn decide_on_matches<'a>(
                     if m.location.overlaps(&this_block_region) {
                         if do_insert == false
                         {
-                            return true; // keep this.
+                            return true; // already discarded current glyph.
                         }
 
                         // We overlap, and the current glyph sequence is still under consideration;
-                        // Decide if better, if equal length, use the histogram length.
-                        let new_is_better;
-                        // if glyphs.len() == m.tokens.len()
-                        {
-                            let current = glyphs.iter().map(|z| { if let Token::Glyph{glyph, ..} =  z.token {glyph.total()} else { 0 } }).fold(0, |x, a| { x + a});
-                            let mlen = m.tokens.iter().map(|z| { z.glyph.total() }).fold(0, |x, a| { x + a});
-                            new_is_better = current >= mlen;
-                        }
-                        // else
-                        // if glyphs.len() > m.tokens.len()
-                        // {
-                            // new_is_better = true;
-                        // }
-                        // else
-                        // {
-                            // new_is_better = false;
-                        // }
+                        // Decide if better, more matching pixels is better:
+                        let current = glyphs.iter().map(|z| { if let Token::Glyph{glyph, ..} =  z.token {glyph.total()} else { 0 } }).fold(0, |x, a| { x + a});
+                        let mlen = m.tokens.iter().map(|z| { z.glyph.total() }).fold(0, |x, a| { x + a});
+                        let new_is_better = current >= mlen;
+
                         if !new_is_better {
-                            do_insert = false;
+                            // new is not better than what we have
+                            do_insert = false;  // ensure we don't insert.
                             return true; // keep old
                         } else {
                             return false; // drop old.
                         }
                     }
-                    return true; // no overlap, always keep.
+                    return true; // no overlap, always consideration.
                 })
                 .collect::<_>();
 
 
-            print!("y: {y} -> ");
-            print_match_slice(glyphs);
-            print!(" @  {this_block_region:?}   ");
-            print!("   -> {do_insert:?}");
-            println!();
+            // print!("y: {y} -> ");
+            // print_match_slice(glyphs);
+            // print!(" @  {this_block_region:?}   ");
+            // print!("   -> {do_insert:?}");
+            // println!();
 
 
             if do_insert  {
@@ -524,12 +513,12 @@ pub fn moving_windowed_histogram<'a>(
         // Here, we match the current histogram, and store matches.
 
         // println!("{histogram:?}");
-        if y == 696
-        {
-            let simple_hist = bin_histogram_to_simple_histogram(&histogram);
-            println!("y: {y} -> {simple_hist:?}");
-            println!("y: {y} -> {res_consider:?}");
-        }
+        // if y == 696
+        // {
+            // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
+            // println!("y: {y} -> {simple_hist:?}");
+            // println!("y: {y} -> {res_consider:?}");
+        // }
 
         // Find glyphs in the histogram.
         let matches = bin_glyph_matcher(&histogram, &set);
