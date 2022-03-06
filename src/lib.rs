@@ -578,4 +578,49 @@ mod tests {
             println!();
         }
     }
+    #[test]
+    fn test_bin_glyph_matcher_no_white_space_moving_multiple() {
+        println!();
+
+        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0));
+        glyph_set.prepare();
+
+        use std::path::Path;
+        use rusttype::{Font, Scale};
+        use image::Rgb;
+        
+        let font_size = 40.0;
+        let font =
+            std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf").unwrap();
+        let font = Font::try_from_vec(font).unwrap();
+
+        let size = (500, 500);
+
+        let mut drawables = image_support::dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
+        drawables.extend(image_support::dev_example_glyphs_packed(100, 15, &Rgb([255u8, 0u8, 0u8])));
+
+        let image = image_support::render_font_image(size, &font, font_size, &drawables);
+        let _ = image
+            .save(Path::new("dev_glyph_matcher_no_white_space_moving_multiple.png"))
+            .unwrap();
+
+        let image = image_support::rgb_image_to_view(&image);
+        let labels = vec![(RGB::white(), 0), (RGB::red(), 0)];
+        // let labels = vec![(RGB::white(), 0), (RGB::red(), 1)]; // this breaks
+
+        let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
+        for m in matches.iter()
+        {
+            let location = &m.location;
+            print!("{location:?} -> ");
+            for t in m.tokens.iter()
+            {
+                let l = t.label;
+                let g = t.glyph.glyph();
+                print!(" {g:?}#{l}");
+            }
+            println!();
+        }
+    }
 }

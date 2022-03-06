@@ -175,6 +175,16 @@ pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error
     Ok(render_font_image(size, &font, font_size, &drawables))
 }
 
+pub fn dev_example_glyphs_packed(x: u32, y: u32, color: &Rgb<u8>) -> Vec<((u32, u32), String, Rgb<u8>)>
+{
+    let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
+    drawables.push(((20 + x, 20 + y), String::from("a"), *color));
+    drawables.push(((35 + x, 20 + y), String::from("b"), *color));
+    drawables.push(((54 + x, 20 + y), String::from("e"), *color));
+    drawables.push(((73 + x, 20 + y), String::from("z"), *color));
+    drawables
+}
+
 pub fn dev_create_example_glyphs_packed() -> Result<RgbImage, Box<dyn std::error::Error>> {
     // Create an image without spaces.
     let font_size = 40.0;
@@ -187,13 +197,7 @@ pub fn dev_create_example_glyphs_packed() -> Result<RgbImage, Box<dyn std::error
         (font_size * (4 + 1) as f32) as u32,
         (font_size * 2.0) as u32,
     );
-
-    let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
-    drawables.push(((20, 20), String::from("a"), Rgb([255u8, 255u8, 255u8])));
-    drawables.push(((35, 20), String::from("b"), Rgb([255u8, 255u8, 255u8])));
-    drawables.push(((54, 20), String::from("e"), Rgb([255u8, 255u8, 255u8])));
-    drawables.push(((73, 20), String::from("z"), Rgb([255u8, 255u8, 255u8])));
-
+    let drawables = dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
     Ok(render_font_image(size, &font, font_size, &drawables))
 }
 
