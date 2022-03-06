@@ -17,6 +17,16 @@ pub mod image_support;
 #[cfg(test)]
 pub mod image_support;
 
+
+/*
+    Improvements:
+        - Currently, a space character would be greedy and match until end of line.
+          We need something to limit this from occuring more than 'n' times in a row and
+          perform strip on the glyph sequence afterwards.
+        - Token matcher can't split based on the labels, because the histogram may have labels
+          in between glyphs that weren't colored appropriately. Search for CONSIDER_MATCH_LABEL.
+*/
+
 /// Function to match a single color in an image and convert this to a histogram.
 fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
     let mut res: SimpleHistogram = SimpleHistogram::new();
@@ -178,10 +188,11 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
             if histogram[i].count == 0 {
                 // This checks if the last entry in the current matches is a whitespace token,
                 // if it is, we will add one to it, otherwise, we push a new whitespace token.
-                // https://stackoverflow.com/a/32554326
                 // CONSIDER: this is less than ideal, may want to do something smart here
                 // run through it once to identify whitespace jumps at the top to prepare
                 // then here just do a single jump if within one of the whitespace intervals.
+
+                // https://stackoverflow.com/a/32554326
                 let mut last = res.last_mut();
                 if last.is_some()
                     && std::mem::discriminant(&last.as_ref().unwrap().token)
@@ -209,11 +220,11 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         // CONSIDER: Splitting the histogram by labels at the start, then match on the labels.
         // Next, make sure we only match the label found in the first bin.
         // This is problematic... Since space between letters may not have the label set.
+        // Disabled this for now. See CONSIDER_MATCH_LABEL.
         // let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
         // let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
 
         // Let us check all the glyphs and determine which one has the lowest score.
-
         type ScoreType = u32;
         let mut scores: Vec<ScoreType> = vec![];
         scores.resize(set.entries.len(), 0 as ScoreType);
@@ -372,10 +383,10 @@ pub fn moving_windowed_histogram<'a>(
     for y in 0..((image.height() - window_size) as u32) {
         // Here, we match the current histogram, and store matches.
 
-        println!("{histogram:?}");
+        // println!("{histogram:?}");
+        // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
+        // println!("y: {y} -> {simple_hist:?}");
 
-        let simple_hist = bin_histogram_to_simple_histogram(&histogram);
-        println!("y: {y} -> {simple_hist:?}");
         let matches = bin_glyph_matcher(&histogram, &set);
         // Matches are 1D matches, we want consecutive glyph blocks.
         // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
@@ -408,9 +419,9 @@ pub fn moving_windowed_histogram<'a>(
                 let first_glyph = glyphs.first().expect("never empty");
                 let last_glyph = glyphs.last().expect("never empty");
 
-                print!("y: {y} -> ");
-                print_match_slice(glyphs);
-                println!();
+                // print!("y: {y} -> ");
+                // print_match_slice(glyphs);
+                // println!();
 
                 let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
                 let this_block_region = Rect {
@@ -605,7 +616,7 @@ mod tests {
 
         let size = (500, 500);
 
-        let mut drawables = image_support::dev_example_glyphs_packed(0, 0, &Rgb([0u8, 0u8, 0u8]));
+        let mut drawables = image_support::dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
         drawables.extend(image_support::dev_example_glyphs_packed(
             100,
             15,
@@ -624,9 +635,8 @@ mod tests {
             .unwrap();
 
         let image = image_support::rgb_image_to_view(&image);
-        // let labels = vec![(RGB::white(), 0), (RGB::red(), 0)];
-        // let labels = vec![(RGB::white(), 0), (RGB::red(), 1)]; // this breaks
-        let labels = vec![(RGB::white(), 0), (RGB::red(), 1)]; // this breaks
+        let labels = vec![(RGB::white(), 0), (RGB::red(), 1)];
+
 
         let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
         for m in matches.iter() {
