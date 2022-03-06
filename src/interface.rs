@@ -10,7 +10,6 @@ pub struct RGB {
 }
 
 impl RGB {
-    /// The color white.
     pub fn white() -> Self {
         RGB {
             r: 255,
@@ -18,9 +17,17 @@ impl RGB {
             b: 255,
         }
     }
-    /// The color red.
+    pub fn black() -> Self {
+        RGB { r: 0, g: 0, b: 0 }
+    }
     pub fn red() -> Self {
         RGB { r: 255, g: 0, b: 0 }
+    }
+    pub fn green() -> Self {
+        RGB { r: 0, g: 255, b: 0 }
+    }
+    pub fn blue() -> Self {
+        RGB { r: 0, g: 0, b: 255 }
     }
 }
 

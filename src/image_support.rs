@@ -34,6 +34,23 @@ pub fn filter_white(image: &RgbImage) -> RgbImage {
     })
 }
 
+pub fn filter_primary(image: &RgbImage) -> RgbImage {
+    let white = Rgb([255u8, 255u8, 255u8]);
+    let red = Rgb([255u8, 0u8, 0u8]);
+    let green = Rgb([0u8, 255u8, 0u8]);
+    let blue = Rgb([0u8, 0u8, 255u8]);
+
+    map_colors(image, |p| -> Rgb<u8> {
+        match p {
+            _ if p == white => white,
+            _ if p == red => red,
+            _ if p == green => green,
+            _ if p == blue => blue,
+            _ => Rgb([0u8, 0u8, 0u8]),
+        }
+    })
+}
+
 pub fn line_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
     let gray = grayscale(image);
     let height = image.height();
@@ -175,8 +192,11 @@ pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error
     Ok(render_font_image(size, &font, font_size, &drawables))
 }
 
-pub fn dev_example_glyphs_packed(x: u32, y: u32, color: &Rgb<u8>) -> Vec<((u32, u32), String, Rgb<u8>)>
-{
+pub fn dev_example_glyphs_packed(
+    x: u32,
+    y: u32,
+    color: &Rgb<u8>,
+) -> Vec<((u32, u32), String, Rgb<u8>)> {
     let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
     drawables.push(((20 + x, 20 + y), String::from("a"), *color));
     drawables.push(((35 + x, 20 + y), String::from("b"), *color));
@@ -189,8 +209,7 @@ pub fn dev_create_example_glyphs_packed() -> Result<RgbImage, Box<dyn std::error
     // Create an image without spaces.
     let font_size = 40.0;
 
-    let font =
-        std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
+    let font = std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
     let font = Font::try_from_vec(font).unwrap();
 
     let size = (
