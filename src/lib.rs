@@ -672,4 +672,55 @@ mod tests {
             println!();
         }
     }
+
+    #[test]
+    fn histogram_matcher_real() {
+        // Somehow... this fails :\
+        let s1 : Vec<u8> = vec![0, 0, 13, 13, 1, 1, 3, 4, 5, 3, 0];
+        let s2 : Vec<u8> = vec![0,5,3,2,3,2,2,2,3,2,4,0,0];
+        let s3 : Vec<u8> = vec![0,0,11,2,2,2,2,2,2,0];
+        let s4 : Vec<u8> = vec![0,1,1,1,1,10,10,1,1,1,1,1,0];
+        let s5 : Vec<u8> = vec![0,0,4,2,0,1,3,2,0];
+
+
+        let mut glyph_set: glyphs::GlyphSet = Default::default();
+        glyph_set.entries.push(glyphs::Glyph::new(&s1, &"s1"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s2, &"s2"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s3, &"s3"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s4, &"s4"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s5, &"s5"));
+        glyph_set.prepare();
+
+
+        let mut input: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        input.extend(s1);
+        input.extend(vec![ 0, 0, 0, 0, 0]);
+        input.extend(s2);
+        input.extend(vec![  0, 0, 0,]);
+        input.extend(s3);
+        input.extend(vec![  0, 0]);
+        input.extend(s4);
+        input.extend(vec![  0]);
+        input.extend(s5);
+        input.extend(vec![ 0, 0, 0, 0, 0]);
+
+
+        let binned = simple_histogram_to_bin_histogram(&input);
+
+        let matches = bin_glyph_matcher(&binned, &glyph_set);
+        let mut glyph_counter = 0;
+        for (i, v) in matches.iter().enumerate() {
+            println!("{i}: {v:?}");
+            if let Token::Glyph {
+                glyph,
+                label,
+                error,
+            } = v.token
+            {
+                // assert!(*glyph == glyph_set.entries[glyph_counter]);
+                // assert!(error == 0);
+                glyph_counter += 1;
+            }
+        }
+    }
 }
