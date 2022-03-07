@@ -14,7 +14,7 @@ fn main() {
         .nth(1)
         .expect("no input image file specified");
 
-    let mut only_line: Option<usize>;
+    let only_line: Option<usize>;
     if let Some(line_index_as_str) = std::env::args().nth(2) {
         let parsed = line_index_as_str
             .parse::<isize>()

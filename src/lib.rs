@@ -31,7 +31,7 @@ pub mod image_support;
 */
 
 /// Function to match a single color in an image and convert this to a histogram.
-fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
+pub fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
     let mut res: SimpleHistogram = SimpleHistogram::new();
     res.resize(image.width() as usize, 0);
     for y in 0..image.height() {
@@ -55,7 +55,7 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     res
 }
 
-fn histogram_glyph_matcher(
+pub fn histogram_glyph_matcher(
     histogram: &[u8],
     set: &glyphs::GlyphSet,
     min_width: usize,
@@ -102,19 +102,6 @@ fn histogram_glyph_matcher(
     res
 }
 
-fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin> {
-    hist.iter()
-        .map(|x| Bin {
-            count: *x as u32,
-            label: 0,
-        })
-        .collect::<_>()
-}
-
-fn bin_histogram_to_simple_histogram(hist: &[Bin]) -> SimpleHistogram {
-    hist.iter().map(|x| x.count as u8).collect::<_>()
-}
-
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 struct Bin {
     count: u32,
@@ -135,7 +122,6 @@ enum Token<'a> {
     Glyph {
         glyph: &'a glyphs::Glyph,
         label: usize,
-        error: u32,
     },
 }
 
@@ -144,22 +130,6 @@ struct Match<'a> {
     pub token: Token<'a>,
     pub position: u32,
     pub width: u32,
-}
-
-fn print_match_slice<'a>(glyphs: &[Match<'a>]) {
-    for t in glyphs.iter() {
-        match &t.token {
-            Token::WhiteSpace(w) => print!(" w{w}"),
-            Token::Glyph {
-                glyph,
-                label,
-                error,
-            } => {
-                let s = glyph.glyph();
-                print!(" {}#{label}", s)
-            }
-        }
-    }
 }
 
 fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Match<'a>> {
@@ -270,7 +240,6 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
                     position: position,
                     token: Token::Glyph {
                         glyph: found_glyph,
-                        error: score as u32,
                         label: histogram[label_position].label,
                     },
                     width: found_glyph.hist().len() as u32,
@@ -342,10 +311,10 @@ use std::collections::VecDeque;
 
 // Helper to add a row
 fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
-    for (color, index) in labels.iter() {
+    for (color, label) in labels.iter() {
         if color == p {
             histogram[x].count += 1;
-            histogram[x].label = *index;
+            histogram[x].label = *label;
             return;
         }
     }
@@ -353,7 +322,7 @@ fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>)
 
 // Helper to subtract a row.
 fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
-    for (color, index) in labels.iter() {
+    for (color, _label) in labels.iter() {
         if color == p {
             histogram[x].count = histogram[x].count.saturating_sub(1);
             return;
@@ -391,12 +360,7 @@ fn decide_on_matches<'a>(
             continue;
         }
 
-        if let Token::Glyph {
-            glyph,
-            label,
-            error,
-        } = matches[match_index].token
-        {
+        if let Token::Glyph { .. } = matches[match_index].token {
             // Find the index where this consecutive glyph block ends.
             let block_end = matches[match_index..]
                 .iter()
@@ -478,11 +442,7 @@ fn decide_on_matches<'a>(
                     tokens: glyphs
                         .iter()
                         .map(|z| match z.token {
-                            Token::Glyph {
-                                glyph,
-                                label,
-                                error,
-                            } => LabelledGlyph { glyph, label },
+                            Token::Glyph { glyph, label } => LabelledGlyph { glyph, label },
                             _ => panic!("should never have whitespace here"),
                         })
                         .collect::<_>(),
@@ -564,6 +524,16 @@ pub fn moving_windowed_histogram<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin> {
+        hist.iter()
+            .map(|x| Bin {
+                count: *x as u32,
+                label: 0,
+            })
+            .collect::<_>()
+    }
+
     #[test]
     fn test_histogram_glyph_matcher() {
         assert!(true);
@@ -633,14 +603,8 @@ mod tests {
         let mut glyph_counter = 0;
         for (i, v) in matches.iter().enumerate() {
             println!("{i}: {v:?}");
-            if let Token::Glyph {
-                glyph,
-                label,
-                error,
-            } = v.token
-            {
+            if let Token::Glyph { glyph, .. } = v.token {
                 assert!(*glyph == glyph_set.entries[glyph_counter]);
-                assert!(error == 0);
                 glyph_counter += 1;
             }
         }
@@ -677,7 +641,7 @@ mod tests {
         glyph_set.prepare();
 
         use image::Rgb;
-        use rusttype::{Font, Scale};
+        use rusttype::Font;
         use std::path::Path;
 
         let font_size = 40.0;
@@ -740,7 +704,7 @@ mod tests {
         glyph_set.entries.push(glyphs::Glyph::new(&s5, &"s5"));
         glyph_set.entries.push(glyphs::Glyph::new(&s6, &"s6"));
         glyph_set.prepare();
-        println!("GLyph set: {glyph_set:?}");
+        println!("Glyph set: {glyph_set:?}");
 
         let mut input: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         input.extend(s1);
@@ -762,20 +726,14 @@ mod tests {
         let mut glyph_counter = 0;
         for (i, v) in matches.iter().enumerate() {
             println!("{i}: {v:?}");
-            if let Token::Glyph {
-                glyph,
-                label,
-                error,
-            } = v.token
-            {
+            if let Token::Glyph { glyph, .. } = v.token {
                 assert!(*glyph == glyph_set.entries[glyph_counter]);
-                assert!(error == 0);
                 glyph_counter += 1;
             }
         }
         let mut res_consider: VecDeque<Match2D> = Default::default();
 
-        let m = decide_on_matches(0, glyph_set.line_height as u32, &matches, &mut res_consider);
+        decide_on_matches(0, glyph_set.line_height as u32, &matches, &mut res_consider);
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
     }

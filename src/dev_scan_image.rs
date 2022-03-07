@@ -1,10 +1,10 @@
 use image::open;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn naive_escape(z: &str) -> String {
     z.replace("'", "\'").replace('"', "\\\"")
 }
-use std::time::{Instant};
+use std::time::Instant;
 
 // https://stackoverflow.com/a/8344059
 // Because... html area maps are really unusable.
@@ -35,7 +35,6 @@ fn make_html<'a>(
             "#{} {{ left: {}px; top: {}px; width: {}px; height: {}px; }}\n",
             &name, l, t, w, h
         ));
-
 
         // Constant to display on mouse over.
         code.push_str(&format!(
@@ -132,7 +131,6 @@ fn main() {
     let image = histogram_text_matcher::image_support::rgb_image_to_view(&orig_image);
     let labels = vec![(histogram_text_matcher::RGB::white(), 0)];
 
-    
     let now = Instant::now();
     let matches = histogram_text_matcher::moving_windowed_histogram(&image, &glyph_set, &labels);
     for m in matches.iter() {

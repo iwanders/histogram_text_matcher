@@ -1,7 +1,6 @@
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
-use std::path::Path;
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
