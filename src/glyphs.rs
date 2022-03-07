@@ -11,7 +11,6 @@ type HistogramValue = u8;
 /// Representation for a single glyph.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Glyph {
-
     /// Histogram used to identify this glyph.
     hist: Vec<HistogramValue>,
 

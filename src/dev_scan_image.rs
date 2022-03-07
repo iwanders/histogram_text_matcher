@@ -1,9 +1,7 @@
 use image::open;
 use std::path::PathBuf;
 
-fn naive_escape(z: &str) -> String {
-    z.replace("'", "\'").replace('"', "\\\"")
-}
+
 use std::time::Instant;
 
 // https://stackoverflow.com/a/8344059
@@ -17,88 +15,70 @@ fn make_html<'a>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Write;
+    let mut c: String = String::new();
+    let mut rects: String = String::new();
 
-    let mut c = String::new();
-    let mut css = String::new();
-    let mut code = String::new();
-    let mut areas = String::new();
+
 
     for (i, m) in matches.iter().enumerate() {
-        let name = format!("area_{}", i);
-
-        // #area2 { left:320px; right:40px; bottom: 20px; top: 50px;
-        let l = m.location.left();
-        let t = m.location.top();
-        let w = m.location.width();
-        let h = m.location.height();
-        css.push_str(&format!(
-            "#{} {{ left: {}px; top: {}px; width: {}px; height: {}px; }}\n",
-            &name, l, t, w, h
+        rects.push_str(&format!(
+            "<rect id=\"roi_{i}\" class=\"area-of-interest\"
+               width=\"{w}\"
+               height=\"{h}\"
+               x=\"{l}\"
+               y=\"{t}\" onmouseover=\"mouse_over('roi_{i}', {i});\"/>",
+            l = m.location.left(),
+            t = m.location.bottom(),
+            w = m.location.width(),
+            h = m.location.height(),
         ));
-
-        // Constant to display on mouse over.
-        code.push_str(&format!(
-            "const {} = \"{}\";\n",
-            &name,
-            &naive_escape(&format!("{:?} - {:?}", m.location, m.tokens))
-        ));
-
-        //  <a id="area1" class="area" href="#"></a>
-        areas.push_str(&format!("<a  id=\"{}\" class=\"area\" ", &name));
-        areas.push_str(&format!(" onmouseover=\"z({})\" ", name));
-        let joined = m
-            .tokens
-            .iter()
-            .map(|x| x.glyph.glyph())
-            .collect::<Vec<&str>>()
-            .join("");
-        areas.push_str(&format!(" href=\"#\">{}</a>\n", &joined));
     }
 
-    c.push_str(&format!(
-        "<html><body><style>
-        .area {{
-            display:block;
-            position:absolute;
-            border: 1px solid red;
-        }}
-
-        .area:hover {{ 
-            border: 1px solid green;
-        }}
-
-        {}
-
-        .theimage {{
-            display: block; 
-        }}
-    </style>",
-        &css
-    ));
-    c.push_str(&"<p id=\"n\"></p>");
-    c.push_str(
-        &"<script>
-        function z(m){
-            document.getElementById(\"n\").innerHTML = m;
-            console.log(m);
-        };\n",
-    );
-
-    c.push_str(&code);
 
     c.push_str(
-        &"</script>
-        <div class=\"base\">",
+        &"<!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                svg .area-of-interest {
+                    stroke-width: 2px;
+                    stroke: green;
+                    fill: transparent;
+
+                }
+                svg .area-of-interest:hover {
+                    stroke: red;
+                    fill: rgba(255,0,0,0.25);
+                }
+                </style>
+            </head>
+            <body>
+                <script>
+            function mouse_over(element, index){
+                let match = matches[index];
+                let combined = match.tokens.map((a) => a.glyph.glyph).join(\"\");
+                console.log(combined);
+            }
+            ",
     );
-    c.push_str(&areas);
 
     c.push_str(&format!(
-        "<img class=\"theimage\" src =\"{}\" width=\"{}\" height=\"{}\"/>",
-        image_path.to_string_lossy(),
-        width,
-        height
+        "const matches = {};
+        </script>",
+        &serde_json::to_string(&matches).expect("cannot fail")));
+
+
+    c.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"
+        width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" version=\"1.1\">
+        <image xlink:href=\"{file}\" width=\"{width}\" height=\"{height}\"
+        preserveAspectRatio=\"none\" x=\"0\" y=\"0\" />",
+        file = image_path.to_string_lossy()
     ));
-    c.push_str(&"</div></body></html>");
+
+    c.push_str(&rects);
+
+    c.push_str(&"</svg></body></html>");
 
     let mut file = File::create(out_path)?;
     file.write(&c.as_bytes())?;

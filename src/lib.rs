@@ -11,6 +11,8 @@ pub use interface::*;
 /// Type to hold a simple 1D histogram.
 pub type SimpleHistogram = Vec<u8>;
 
+use serde::{Deserialize, Serialize};
+
 // This here ensures that we have image support when the feature is enabled, but also for all tests.
 #[cfg(feature = "image_support")]
 pub mod image_support;
@@ -102,7 +104,7 @@ pub fn histogram_glyph_matcher(
     res
 }
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 struct Bin {
     count: u32,
     label: usize,
@@ -110,7 +112,7 @@ struct Bin {
 
 type ColorLabel = (RGB, usize);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LabelledGlyph<'a> {
     pub glyph: &'a glyphs::Glyph,
     pub label: usize,
@@ -264,7 +266,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     res
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Rect {
     pub x: u32,
     pub y: u32,
@@ -301,7 +303,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Match2D<'a> {
     pub tokens: Vec<LabelledGlyph<'a>>,
     pub location: Rect,
@@ -429,7 +431,6 @@ fn decide_on_matches<'a>(
                     return true; // no overlap, always consideration.
                 })
                 .collect::<_>();
-
 
             if do_insert {
                 // we pruned boxes, so the new one must be better.
