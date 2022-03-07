@@ -11,19 +11,24 @@ type HistogramValue = u8;
 /// Representation for a single glyph.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Glyph {
+
     /// Histogram used to identify this glyph.
     hist: Vec<HistogramValue>,
+
     /// Histogram with left zero's removed.
     #[serde(skip)]
     lstrip_hist: Vec<HistogramValue>,
+
     /// String representation to associate with the glyph, can contain multiple characters.
     glyph: String,
 
+    /// Total number of pixels in this glyph (sum of histogram).
     #[serde(skip)]
     total: u32,
 }
 
 impl Glyph {
+    /// Create a new glyph from a histogram and glyph to represent it.
     pub fn new(hist: &[HistogramValue], glyph: &str) -> Glyph {
         let mut z = Glyph {
             hist: hist.to_vec(),
@@ -35,7 +40,8 @@ impl Glyph {
         z
     }
 
-    pub fn prepare(&mut self) {
+    /// Prepare the glyph for use.
+    fn prepare(&mut self) {
         let mut i = 0usize;
         while self.hist[i] == 0 && i < self.hist.len() {
             i += 1;
@@ -45,17 +51,22 @@ impl Glyph {
         self.total = self.hist.iter().fold(0u32, |x, a| x + *a as u32);
     }
 
+    /// Total number of pixels in the histogram.
     pub fn total(&self) -> u32 {
         self.total
     }
 
+    /// The histogram that represents this histogram.
     pub fn hist(&self) -> &[HistogramValue] {
         &self.hist
     }
 
+    /// The histogram without empty bins on the left.
     pub fn lstrip_hist(&self) -> &[HistogramValue] {
         &self.lstrip_hist
     }
+
+    /// The string that reprsents this glyph.
     pub fn glyph(&self) -> &str {
         &self.glyph
     }
@@ -66,6 +77,7 @@ impl Glyph {
 pub struct GlyphSet {
     /// List of glyphs that make up this set.
     pub entries: Vec<Glyph>,
+
     /// Line height used for all glyphs in this set.
     /// This is just the distance in which all characters would fit, so the bottom of the p to the
     /// top of the d.
@@ -76,6 +88,7 @@ pub struct GlyphSet {
 }
 
 impl GlyphSet {
+    /// Prepare the glyph set for use.
     pub fn prepare(&mut self) {
         for entry in self.entries.iter_mut() {
             entry.prepare();
@@ -83,7 +96,7 @@ impl GlyphSet {
     }
 }
 
-/// Load a glyph set from a json file.
+/// Load a glyph set from a json or yaml file.
 pub fn load_glyph_set(input_path: &PathBuf) -> Result<GlyphSet, Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Read;
@@ -108,7 +121,7 @@ pub fn load_glyph_set(input_path: &PathBuf) -> Result<GlyphSet, Box<dyn std::err
     Ok(p)
 }
 
-pub fn to_yaml_string(set: &GlyphSet) -> String {
+fn to_yaml_string(set: &GlyphSet) -> String {
     let mut s = String::new();
     s.push_str(&format!("name: \"{}\"\n", set.name));
     s.push_str(&format!("line_height: {}\n", set.line_height));
@@ -128,7 +141,7 @@ pub fn to_yaml_string(set: &GlyphSet) -> String {
     s
 }
 
-/// Write a glyph set to a file.
+/// Write a glyph set to a json or yaml file.
 pub fn write_glyph_set(
     output_path: &PathBuf,
     set: &GlyphSet,
@@ -144,8 +157,8 @@ pub fn write_glyph_set(
     if extension == "json" {
         s = serde_json::to_string(&set)?;
     } else if extension == "yaml" {
-        // s = serde_yaml::to_string(&set)?;
-        // wow, that is unusable as the histogram gets newlines...
+        // Instead of relying on serde_yaml, we manually conver the glyph set here to ensure
+        // newlines are convenient.
         s = to_yaml_string(&set);
     } else {
         return Err(Box::new(std::io::Error::new(

@@ -430,11 +430,6 @@ fn decide_on_matches<'a>(
                 })
                 .collect::<_>();
 
-            // print!("y: {y} -> ");
-            // print_match_slice(glyphs);
-            // print!(" @  {this_block_region:?}   ");
-            // print!("   -> {do_insert:?}");
-            // println!();
 
             if do_insert {
                 // we pruned boxes, so the new one must be better.
@@ -485,14 +480,6 @@ pub fn moving_windowed_histogram<'a>(
 
     for y in 0..((image.height() - window_size) as u32) {
         // Here, we match the current histogram, and store matches.
-
-        // println!("{histogram:?}");
-        // if y == 696
-        // {
-        // let simple_hist = bin_histogram_to_simple_histogram(&histogram);
-        // println!("y: {y} -> {simple_hist:?}");
-        // println!("y: {y} -> {res_consider:?}");
-        // }
 
         // Find glyphs in the histogram.
         let matches = bin_glyph_matcher(&histogram, &set);
