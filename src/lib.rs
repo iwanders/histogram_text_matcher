@@ -150,6 +150,8 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     // to compare.
     let mut use_stripped = true;
 
+    let bin32 = histogram.iter().map(|x|{x.count}).collect::<Vec<u32>>();
+
     while i < histogram.len() - 1 {
         // If we are using stripped symbols, remove the padding from the left, this will be very
         // fast.
@@ -195,18 +197,16 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
 
         // Get the first glyph that matches with zero cost:
         let mut index_of_min: Option<usize> = None;
-        for (zz, glyph) in set.entries.iter().enumerate() {
-            let hist_to_use = if use_stripped {
-                glyph.lstrip_hist()
-            } else {
-                glyph.hist()
-            };
 
-            let exactly_equal = pattern_matches(hist_to_use, remainder);
-            if exactly_equal {
-                index_of_min = Some(zz);
-                break;
-            }
+        if !use_stripped
+        {
+            let z = &bin32[i..];
+            index_of_min = set.matcher.find_match(z);
+        }
+        else
+        {
+            let z = &bin32[i..];
+            index_of_min = set.stripped_matcher.find_match(z);
         }
 
         if let Some(best) = index_of_min {
@@ -428,6 +428,8 @@ fn decide_on_matches<'a>(
         }
     }
 }
+
+
 
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,

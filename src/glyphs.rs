@@ -82,6 +82,103 @@ impl Glyph {
     }
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+pub struct Node {
+    this_bin_index: usize,
+    children: Vec<Option<Node>>,  // indexed by histogram size.
+    glyphs: Vec<usize>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+pub struct GlyphMatcher
+{
+    pub max_length: usize,
+    pub tree: Node,
+}
+
+fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped: bool)
+{
+    // Obtain the highest histogram bin value in this index.
+    let mut highest_value = 0;
+    for i in n.glyphs.iter()
+    {
+        let glyph = &glyphs[*i];
+        let hist = if stripped {glyph.lstrip_hist()} else {glyph.hist()};
+        if hist.len() <= index
+        {
+            continue;
+        }
+        // println!("glyph: {glyph:?}");
+        let pos_in_child = hist[index] as usize;
+
+        n.children.resize(std::cmp::max(n.children.len(),pos_in_child + 1), None);
+        let pos_in_child = hist[index]  as usize;
+
+        if let None = &n.children[pos_in_child]
+        {
+            n.children[pos_in_child] = Some(Default::default());
+        }
+
+        if let Some(mut child) = n.children[pos_in_child].as_mut()
+        {
+            child.glyphs.push(*i);
+        }
+    }
+
+
+    for child in n.children.iter_mut()
+    {
+        if let Some(mut child_node) =  child.as_mut()
+        {
+            recurse_glyph_matching(&mut child_node, &glyphs, index + 1, stripped);
+        }
+    }
+}
+
+impl GlyphMatcher
+{
+    pub fn prepare(&mut self, glyphs: &[Glyph], stripped: bool)
+    {
+        for g in glyphs.iter()
+        {
+            self.max_length = std::cmp::max(self.max_length, g.hist().len());
+        }
+        self.tree.glyphs = (0..glyphs.len()).collect::<_>();
+        recurse_glyph_matching(&mut self.tree, &glyphs, 0, stripped);
+    }
+
+    pub fn find_match(&self, d: &[u32]) -> Option<usize>
+    {
+        let mut c: &Node = &self.tree;
+        let mut i : usize = 0;
+        while i < d.len() {
+            let v = d[i] as usize;
+
+            if c.children.len() == 0
+            {
+                // Return the glyph... hopefully we have one.
+                return Some(c.glyphs[0]);
+            }
+
+            if v >= c.children.len()
+            {
+                return None;
+            }
+
+            if let Some(ref new_c) = c.children[v]
+            {
+                c = new_c;
+                i += 1;
+            }
+            else
+            {
+                return None;
+            }
+        }
+        None
+    }
+}
+
 /// GlyphSet holds a collection of glyphs and associated data.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct GlyphSet {
@@ -95,6 +192,11 @@ pub struct GlyphSet {
 
     /// Name associated to this glyph set, not required, but useful in debugging.
     pub name: String,
+
+    #[serde(skip)]
+    pub matcher: GlyphMatcher,
+    #[serde(skip)]
+    pub stripped_matcher: GlyphMatcher,
 }
 
 impl GlyphSet {
@@ -103,6 +205,13 @@ impl GlyphSet {
         for entry in self.entries.iter_mut() {
             entry.prepare();
         }
+        self.matcher.prepare(&self.entries, false);
+        self.stripped_matcher.prepare(&self.entries, true);
+    }
+
+    pub fn find_match(&self, d: &[u32]) -> Option<usize>
+    {
+        self.matcher.find_match(d)
     }
 }
 
