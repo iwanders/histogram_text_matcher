@@ -138,18 +138,12 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
-    fn calc_score(pattern: &[u8], to_match: &[Bin]) -> u32 {
-        let mut res: u32 = 0;
-        for (x_a, b) in (0..pattern.len()).zip(to_match.iter()) {
-            let a = pattern[x_a];
-            let a = a as u32;
-            res += if a > b.count {
-                a - b.count
-            } else {
-                b.count - a
-            };
-        }
-        res
+    fn pattern_matches(pattern: &[u8], to_match: &[Bin]) -> bool
+    {
+        let min = std::cmp::min(pattern.len(), to_match.len());
+        let a = pattern[0..min].iter().map(|x|{*x});
+        let b = to_match[0..min].iter().map(|x|{x.count as u8});
+        a.eq(b)
     }
 
     // Boolean to keep track of whether we are using stripped values or non stripped values
@@ -208,8 +202,8 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
                 glyph.hist()
             };
 
-            let score = calc_score(hist_to_use, remainder);
-            if score == 0 {
+            let exactly_equal = pattern_matches(hist_to_use, remainder);
+            if exactly_equal {
                 index_of_min = Some(zz);
                 break;
             }
