@@ -14,14 +14,16 @@ fn make_html<'a>(
     let mut c: String = String::new();
     let mut rects: String = String::new();
 
-
     for (i, m) in matches.iter().enumerate() {
         rects.push_str(&format!(
             "<rect id=\"roi_{i}\" class=\"area-of-interest\"
-               width=\"{w}\"
-               height=\"{h}\"
-               x=\"{l}\"
-               y=\"{t}\" onmousemove=\"mouse_move(event, 'roi_{i}', {i});\" onmouseout=\"mouse_out(event, 'roi_{i}', {i});\" />",
+                width=\"{w}\"
+                height=\"{h}\"
+                x=\"{l}\"
+                y=\"{t}\"
+                onmousemove=\"mouse_move(event, {i});\"
+                onmouseout=\"mouse_out(event, {i});\"
+                onclick=\"mouse_click(event, {i});\" />\n",
             l = m.location.left(),
             t = m.location.bottom(),
             w = m.location.width(),
@@ -38,14 +40,18 @@ fn make_html<'a>(
                     stroke-width: 2px;
                     stroke: green;
                     fill: transparent;
-
                 }
                 svg .area-of-interest:hover {
                     stroke: red;
                     fill: rgba(255,0,0,0.25);
                 }
-                #tooltip {
-                    fill: rgba(255,255,0,0.7);
+                #tooltip-combined {
+                    color: black;
+                    font: 18px serif;
+                    display: inline-block;
+                    background-color: #EEE;
+                    padding: 5px;
+                    border-radius: 10px;
                 }
                 #message {
                     min-height: 50px;
@@ -55,15 +61,13 @@ fn make_html<'a>(
             <body>
                 <script>
             let d = (a) => document.getElementById(a);
-            function mouse_move(e, element, index){
+            let combined = (match) => match.tokens.map((a) => a.glyph.glyph).join(\"\");
+            function mouse_move(e, index){
                 let match = matches[index];
-                let combined = match.tokens.map((a) => a.glyph.glyph).join(\"\");
-                console.log(combined);
-                d(\"message\").textContent = JSON.stringify(match);
+                let match_str = combined(match);
 
                 let svg_el = d(\"svg_el\");
                 let tooltip = d(\"tooltip\");
-
                 var point = svg_el.createSVGPoint();
                 point.x = e.clientX;
                 point.y = e.clientY;
@@ -74,11 +78,16 @@ fn make_html<'a>(
                 d(\"tooltip\").transform.baseVal.getItem(0).setTranslate(p.x,p.y);
                 // Set tooltip to visible.
                 d(\"tooltip\").setAttributeNS(null, \"visibility\", \"visible\");
-
-                d(\"tooltip-combined\").firstChild.data = combined
-                d(\"tooltip-location\").firstChild.data =  JSON.stringify(match.location);
+                // Set the fancy embedded html text.
+                d(\"tooltip-combined\").innerHTML = match_str + \"<br>\" +  JSON.stringify(match.location);
             }
-            function mouse_out(e, element, index){
+
+            function mouse_click(e, index){
+                let match = matches[index];
+                let match_str = combined(match);
+                d(\"message\").innerHTML = match_str + \"<br>\" +  JSON.stringify(match.location);
+            }
+            function mouse_out(e, index){
                 d(\"tooltip\").setAttributeNS(null, \"visibility\", \"hidden\");
             }
             ",
@@ -87,9 +96,9 @@ fn make_html<'a>(
     c.push_str(&format!(
         "const matches = {};
         </script>
-        <p id=\"message\"></p>",
-        &serde_json::to_string(&matches).expect("cannot fail")));
-
+        <p id=\"message\">Click an area to provide the information here.</p>",
+        &serde_json::to_string(&matches).expect("cannot fail")
+    ));
 
     c.push_str(&format!(
         "<svg id=\"svg_el\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"
@@ -99,16 +108,17 @@ fn make_html<'a>(
         file = image_path.to_string_lossy()
     ));
 
+    c.push_str(&rects);
+
+    // Draw the tooltip after the rectangles such that it goes over them.
     c.push_str(&format!(
         "<g id=\"tooltip\" x=\"0\" y=\"0\" visibility=\"hidden\" transform=\"translate(0,0)\" >
-            <text x=\"0\" y=\"15\"  font-size=\"15\" >
-                <tspan x=\"0\" id=\"tooltip-combined\" dy=\"15\">tspan line 1</tspan>
-                <tspan x=\"0\" id=\"tooltip-location\" dy=\"15\">tspan line 2</tspan>
-            </text>
+            <foreignObject x=\"10\" y=\"10\" width=\"1000\" height=\"1000\">
+                <div id=\"tooltip-combined\"  xmlns=\"http://www.w3.org/1999/xhtml\">
+                </div>
+            </foreignObject>
         </g>",
     ));
-
-    c.push_str(&rects);
 
     c.push_str(&"</svg></body></html>");
 
