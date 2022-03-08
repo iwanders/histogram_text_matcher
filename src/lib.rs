@@ -141,11 +141,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     fn calc_score(pattern: &[u8], to_match: &[Bin]) -> u32 {
         let mut res: u32 = 0;
         for (x_a, b) in (0..pattern.len()).zip(to_match.iter()) {
-            let a = if x_a < pattern.len() {
-                pattern[x_a]
-            } else {
-                0u8
-            };
+            let a = pattern[x_a];
             let a = a as u32;
             res += if a > b.count {
                 a - b.count
@@ -203,64 +199,52 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         // let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
         // let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
 
-        // Let us check all the glyphs and determine which one has the lowest score.
-        type ScoreType = u32;
-        let mut scores: Vec<ScoreType> = vec![];
-        scores.resize(set.entries.len(), 0 as ScoreType);
-        for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
-            *score = calc_score(
-                if use_stripped {
-                    glyph.lstrip_hist()
-                } else {
-                    glyph.hist()
-                },
-                remainder,
-            );
-        }
+        // Get the first glyph that matches with zero cost:
+        let mut index_of_min: Option<usize> = None;
+        for (zz, glyph) in set.entries.iter().enumerate() {
+            let hist_to_use = if use_stripped {
+                glyph.lstrip_hist()
+            } else {
+                glyph.hist()
+            };
 
-        // https://stackoverflow.com/a/53908709
-        let index_of_min: Option<usize> = scores
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, _)| index);
+            let score = calc_score(hist_to_use, remainder);
+            if score == 0 {
+                index_of_min = Some(zz);
+                break;
+            }
+        }
 
         if let Some(best) = index_of_min {
             let found_glyph = &set.entries[best];
-            let score = scores[best];
-            // println!("#{i} score: {score} -> {found_glyph:?}");
 
-            if score == 0 {
-                // Calculate the true position, depends on whether we used stripped values.
-                let first_non_zero = found_glyph.hist().len() - found_glyph.lstrip_hist().len();
-                let position = i as u32 - if use_stripped { first_non_zero } else { 0 } as u32;
-                // Position where histogram where this letter has the first non-zero;
-                let label_position = position as usize + first_non_zero;
+            // Calculate the true position, depends on whether we used stripped values.
+            let first_non_zero = found_glyph.first_non_zero();
+            let position = i as u32 - if use_stripped { first_non_zero } else { 0 } as u32;
+            // Position where histogram where this letter has the first non-zero;
+            let label_position = position as usize + first_non_zero;
 
-                // Add the newly detected glyph
-                res.push(Match {
-                    position: position,
-                    token: Token::Glyph {
-                        glyph: found_glyph,
-                        label: histogram[label_position].label,
-                    },
-                    width: found_glyph.hist().len() as u32,
-                });
+            // Add the newly detected glyph
+            res.push(Match {
+                position: position,
+                token: Token::Glyph {
+                    glyph: found_glyph,
+                    label: histogram[label_position].label,
+                },
+                width: found_glyph.hist().len() as u32,
+            });
 
-                // Advance the cursor by the width of the glyph we just matched.
-                i += if use_stripped {
-                    found_glyph.lstrip_hist().len()
-                } else {
-                    found_glyph.hist().len()
-                };
+            // Advance the cursor by the width of the glyph we just matched.
+            i += if use_stripped {
+                found_glyph.lstrip_hist().len()
             } else {
-                i += 1;
-            }
+                found_glyph.hist().len()
+            };
 
-            // Only use stripped if we didn't get a perfect match.
-            use_stripped = score != 0;
+            use_stripped = false;
         } else {
-            panic!("Somehow didn't get a lowest score... did we have glyphs?");
+            i += 1;
+            use_stripped = true; // Switch to using stripped, we didn't get a perfect match.
         }
     }
     res
@@ -471,26 +455,41 @@ pub fn moving_windowed_histogram<'a>(
     // Then, we iterate down, at the bottom of the window add to the histogram
     // and the top row that moves out we subtract.
 
+    use std::time::Instant;
+    let mut duration_hist = 0.0;
+    let mut duration_matcher = 0.0;
+    let mut duration_decider = 0.0;
+    let mut duration_finalizer = 0.0;
+
     // Let us first, setup the first histogram, this is from 0 to window size.
+    let now = Instant::now();
     for y in 0..window_size {
         for x in 0..image.width() {
             let p = image.pixel(x, y);
             add_pixel(x as usize, &p, labels, &mut histogram);
         }
     }
+    duration_hist += now.elapsed().as_secs_f64();
 
     for y in 0..((image.height() - window_size) as u32) {
         // Here, we match the current histogram, and store matches.
 
         // Find glyphs in the histogram.
+        let now = Instant::now();
         let matches = bin_glyph_matcher(&histogram, &set);
+        duration_matcher += now.elapsed().as_secs_f64();
 
         // Decide which matches are to be kept.
+        let now = Instant::now();
         decide_on_matches(y, window_size, &matches, &mut res_consider);
+        duration_decider += now.elapsed().as_secs_f64();
 
         // Move matches from res_consider to res_final.
+        let now = Instant::now();
         finalize_considerations(y, &mut res_consider, &mut res_final);
+        duration_finalizer += now.elapsed().as_secs_f64();
 
+        let now = Instant::now();
         // Subtract from the side moving out of the histogram.
         for x in 0..image.width() {
             let p = image.pixel(x, y);
@@ -502,9 +501,15 @@ pub fn moving_windowed_histogram<'a>(
             let p = image.pixel(x, y + window_size);
             add_pixel(x as usize, &p, labels, &mut histogram);
         }
+        duration_hist += now.elapsed().as_secs_f64();
     }
 
     res_final.extend(res_consider.drain(..));
+
+    println!("duration_hist: {duration_hist: >10.6}");
+    println!("duration_matcher: {duration_matcher: >10.6}");
+    println!("duration_decider: {duration_decider: >10.6}");
+    println!("duration_finalizer: {duration_finalizer: >10.6}");
 
     res_final
 }

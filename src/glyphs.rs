@@ -24,6 +24,10 @@ pub struct Glyph {
     /// Total number of pixels in this glyph (sum of histogram).
     #[serde(skip)]
     total: u32,
+
+    /// Index of first non-zero bin in histogram.
+    #[serde(skip)]
+    first_non_zero: usize,
 }
 
 impl Glyph {
@@ -34,6 +38,7 @@ impl Glyph {
             glyph: glyph.to_owned(),
             lstrip_hist: vec![],
             total: 0,
+            first_non_zero: 0,
         };
         z.prepare();
         z
@@ -48,6 +53,7 @@ impl Glyph {
         self.lstrip_hist = self.hist[i..].to_vec();
 
         self.total = self.hist.iter().fold(0u32, |x, a| x + *a as u32);
+        self.first_non_zero = self.hist().len() - self.lstrip_hist().len();
     }
 
     /// Total number of pixels in the histogram.
@@ -68,6 +74,11 @@ impl Glyph {
     /// The string that reprsents this glyph.
     pub fn glyph(&self) -> &str {
         &self.glyph
+    }
+
+    /// The index of the first bin in the histogram that's non zero.
+    pub fn first_non_zero(&self) -> usize {
+        self.first_non_zero
     }
 }
 
