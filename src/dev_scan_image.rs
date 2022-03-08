@@ -1,11 +1,7 @@
 use image::open;
 use std::path::PathBuf;
-
-
 use std::time::Instant;
 
-// https://stackoverflow.com/a/8344059
-// Because... html area maps are really unusable.
 fn make_html<'a>(
     width: u32,
     height: u32,
@@ -19,21 +15,19 @@ fn make_html<'a>(
     let mut rects: String = String::new();
 
 
-
     for (i, m) in matches.iter().enumerate() {
         rects.push_str(&format!(
             "<rect id=\"roi_{i}\" class=\"area-of-interest\"
                width=\"{w}\"
                height=\"{h}\"
                x=\"{l}\"
-               y=\"{t}\" onmouseover=\"mouse_over('roi_{i}', {i});\"/>",
+               y=\"{t}\" onmousemove=\"mouse_move(event, 'roi_{i}', {i});\" onmouseout=\"mouse_out(event, 'roi_{i}', {i});\" />",
             l = m.location.left(),
             t = m.location.bottom(),
             w = m.location.width(),
             h = m.location.height(),
         ));
     }
-
 
     c.push_str(
         &"<!DOCTYPE html>
@@ -50,30 +44,61 @@ fn make_html<'a>(
                     stroke: red;
                     fill: rgba(255,0,0,0.25);
                 }
+                #tooltip {
+                    fill: rgba(255,0,0,0.7);
+                }
+                #message {
+                    min-height: 50px;
+                }
                 </style>
             </head>
             <body>
                 <script>
-            function mouse_over(element, index){
+            let d = (a) => document.getElementById(a);
+            function mouse_move(e, element, index){
                 let match = matches[index];
                 let combined = match.tokens.map((a) => a.glyph.glyph).join(\"\");
                 console.log(combined);
+                d(\"message\").textContent = JSON.stringify(match);
+
+                let svg_el = d(\"svg_el\");
+                let tooltip = d(\"tooltip\");
+
+                var point = svg_el.createSVGPoint();
+                point.x = e.clientX;
+                point.y = e.clientY;
+                var ctm = svg_el.getScreenCTM();
+                var inverse = ctm.inverse();
+                var p = point.matrixTransform(inverse);
+
+                d(\"tooltip\").setAttributeNS(null, \"visibility\", \"visible\");
+                d(\"tooltip\").setAttributeNS(null, \"x\",  p.x);
+                d(\"tooltip\").setAttributeNS(null, \"y\",  p.y);
+                d(\"tooltip\").firstChild.data = combined + ' - ' +  JSON.stringify(match.location);
+            }
+            function mouse_out(e, element, index){
+                d(\"tooltip\").setAttributeNS(null, \"visibility\", \"hidden\");
             }
             ",
     );
 
     c.push_str(&format!(
         "const matches = {};
-        </script>",
+        </script>
+        <p id=\"message\"></p>",
         &serde_json::to_string(&matches).expect("cannot fail")));
 
 
     c.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"
+        "<svg id=\"svg_el\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"
         width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" version=\"1.1\">
         <image xlink:href=\"{file}\" width=\"{width}\" height=\"{height}\"
         preserveAspectRatio=\"none\" x=\"0\" y=\"0\" />",
         file = image_path.to_string_lossy()
+    ));
+
+    c.push_str(&format!(
+        "<text id=\"tooltip\" x=\"0\" y=\"0\" visibility=\"hidden\">zz</text>",
     ));
 
     c.push_str(&rects);
