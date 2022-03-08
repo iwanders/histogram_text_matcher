@@ -45,7 +45,7 @@ fn make_html<'a>(
                     fill: rgba(255,0,0,0.25);
                 }
                 #tooltip {
-                    fill: rgba(255,0,0,0.7);
+                    fill: rgba(255,255,0,0.7);
                 }
                 #message {
                     min-height: 50px;
@@ -70,11 +70,13 @@ fn make_html<'a>(
                 var ctm = svg_el.getScreenCTM();
                 var inverse = ctm.inverse();
                 var p = point.matrixTransform(inverse);
-
+                // position the tooltip.
+                d(\"tooltip\").transform.baseVal.getItem(0).setTranslate(p.x,p.y);
+                // Set tooltip to visible.
                 d(\"tooltip\").setAttributeNS(null, \"visibility\", \"visible\");
-                d(\"tooltip\").setAttributeNS(null, \"x\",  p.x);
-                d(\"tooltip\").setAttributeNS(null, \"y\",  p.y);
-                d(\"tooltip\").firstChild.data = combined + ' - ' +  JSON.stringify(match.location);
+
+                d(\"tooltip-combined\").firstChild.data = combined
+                d(\"tooltip-location\").firstChild.data =  JSON.stringify(match.location);
             }
             function mouse_out(e, element, index){
                 d(\"tooltip\").setAttributeNS(null, \"visibility\", \"hidden\");
@@ -98,7 +100,12 @@ fn make_html<'a>(
     ));
 
     c.push_str(&format!(
-        "<text id=\"tooltip\" x=\"0\" y=\"0\" visibility=\"hidden\">zz</text>",
+        "<g id=\"tooltip\" x=\"0\" y=\"0\" visibility=\"hidden\" transform=\"translate(0,0)\" >
+            <text x=\"0\" y=\"15\"  font-size=\"15\" >
+                <tspan x=\"0\" id=\"tooltip-combined\" dy=\"15\">tspan line 1</tspan>
+                <tspan x=\"0\" id=\"tooltip-location\" dy=\"15\">tspan line 2</tspan>
+            </text>
+        </g>",
     ));
 
     c.push_str(&rects);
