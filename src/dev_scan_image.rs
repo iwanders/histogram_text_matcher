@@ -16,14 +16,14 @@ fn make_html<'a>(
 
     for (i, m) in matches.iter().enumerate() {
         rects.push_str(&format!(
-            "<rect id=\"roi_{i}\" class=\"area-of-interest\"
-                width=\"{w}\"
-                height=\"{h}\"
-                x=\"{l}\"
-                y=\"{t}\"
-                onmousemove=\"mouse_move(event, {i});\"
-                onmouseout=\"mouse_out(event, {i});\"
-                onclick=\"mouse_click(event, {i});\" />\n",
+            r#"<rect id="roi_{i}" class="area-of-interest"
+                width="{w}"
+                height="{h}"
+                x="{l}"
+                y="{t}"
+                onmousemove="mouse_move(event, {i});"
+                onmouseout="mouse_out(event, {i});"
+                onclick="mouse_click(event, {i});" />\n"#,
             l = m.location.left(),
             t = m.location.bottom(),
             w = m.location.width(),
@@ -32,7 +32,7 @@ fn make_html<'a>(
     }
 
     c.push_str(
-        &"<!DOCTYPE html>
+        &r##"<!DOCTYPE html>
             <html>
             <head>
                 <style>
@@ -61,13 +61,13 @@ fn make_html<'a>(
             <body>
                 <script>
             let d = (a) => document.getElementById(a);
-            let combined = (match) => match.tokens.map((a) => a.glyph.glyph).join(\"\");
+            let combined = (match) => match.tokens.map((a) => a.glyph.glyph).join("");
             function mouse_move(e, index){
                 let match = matches[index];
                 let match_str = combined(match);
 
-                let svg_el = d(\"svg_el\");
-                let tooltip = d(\"tooltip\");
+                let svg_el = d("svg_el");
+                let tooltip = d("tooltip");
                 var point = svg_el.createSVGPoint();
                 point.x = e.clientX;
                 point.y = e.clientY;
@@ -75,36 +75,36 @@ fn make_html<'a>(
                 var inverse = ctm.inverse();
                 var p = point.matrixTransform(inverse);
                 // position the tooltip.
-                d(\"tooltip\").transform.baseVal.getItem(0).setTranslate(p.x,p.y);
+                d("tooltip").transform.baseVal.getItem(0).setTranslate(p.x,p.y);
                 // Set tooltip to visible.
-                d(\"tooltip\").setAttributeNS(null, \"visibility\", \"visible\");
+                d("tooltip").setAttributeNS(null, "visibility", "visible");
                 // Set the fancy embedded html text.
-                d(\"tooltip-combined\").innerHTML = match_str + \"<br>\" +  JSON.stringify(match.location);
+                d("tooltip-combined").innerHTML = match_str + "<br>" +  JSON.stringify(match.location);
             }
 
             function mouse_click(e, index){
                 let match = matches[index];
                 let match_str = combined(match);
-                d(\"message\").innerHTML = match_str + \"<br>\" +  JSON.stringify(match.location);
+                d("message").innerHTML = match_str + "<br>" +  JSON.stringify(match.location);
             }
             function mouse_out(e, index){
-                d(\"tooltip\").setAttributeNS(null, \"visibility\", \"hidden\");
+                d("tooltip").setAttributeNS(null, "visibility", "hidden");
             }
-            ",
+            "##,
     );
 
     c.push_str(&format!(
-        "const matches = {};
+        r#"const matches = {};
         </script>
-        <p id=\"message\">Click an area to provide the information here.</p>",
+        <p id="message">Click an area to provide the information here.</p>"#,
         &serde_json::to_string(&matches).expect("cannot fail")
     ));
 
     c.push_str(&format!(
-        "<svg id=\"svg_el\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"
-        width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" version=\"1.1\">
-        <image xlink:href=\"{file}\" width=\"{width}\" height=\"{height}\"
-        preserveAspectRatio=\"none\" x=\"0\" y=\"0\" />",
+        r#"<svg id="svg_el" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        width="{width}" height="{height}" viewBox="0 0 {width} {height}" version="1.1">
+        <image xlink:href="{file}" width="{width}" height="{height}"
+        preserveAspectRatio="none" x="0" y="0" />"#,
         file = image_path.to_string_lossy()
     ));
 
@@ -112,12 +112,12 @@ fn make_html<'a>(
 
     // Draw the tooltip after the rectangles such that it goes over them.
     c.push_str(&format!(
-        "<g id=\"tooltip\" x=\"0\" y=\"0\" visibility=\"hidden\" transform=\"translate(0,0)\" >
-            <foreignObject x=\"10\" y=\"10\" width=\"1000\" height=\"1000\">
-                <div id=\"tooltip-combined\"  xmlns=\"http://www.w3.org/1999/xhtml\">
+        r#"<g id="tooltip" x="0" y="0" visibility="hidden" transform="translate(0,0)" >
+            <foreignObject x="10" y="10" width="1000" height="1000">
+                <div id="tooltip-combined"  xmlns="http://www.w3.org/1999/xhtml">
                 </div>
             </foreignObject>
-        </g>",
+        </g>"#,
     ));
 
     c.push_str(&"</svg></body></html>");
