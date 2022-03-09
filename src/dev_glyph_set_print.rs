@@ -51,5 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut file = File::create("/tmp/glyphs.dot")?;
     file.write(glyph_set.matcher.to_dot(&glyph_set.entries).as_bytes())?;
 
+    let mut file = File::create("/tmp/glyphs_lstrip.dot")?;
+    file.write(glyph_set.lstrip_matcher.to_dot(&glyph_set.entries).as_bytes())?;
+
     Ok(())
 }

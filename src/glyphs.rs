@@ -82,12 +82,15 @@ impl Glyph {
     }
 }
 
+/// A node in the lookup table tree.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Node {
     children: Vec<Option<Node>>, // indexed by histogram size.
     glyphs: Vec<usize>,
 }
 
+
+/// A lookup table based glyph matcher that jumps to offsets based on histogram values.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct GlyphMatcher {
     pub tree: Node,
@@ -136,6 +139,20 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
         }
     }
 }
+
+// Currently the glyph matcher (or dot visualisation can't distinguish between:
+// [0, 0, 13, 0, 0]
+// [0, 0, 13, 0, 0, 0]
+// It seems the first one would get discarded in all cases in favour of the second one.
+// Even if the second one would not match against the histogram. The first would become unreachable.
+// A slighly different change would be:
+// 
+// a: [0, 0, 13, 0, 1]
+// b: [0, 0, 13, 0, 1, 3]
+// Matching against [0, 0, 13, 0, 1, 3], in which case we would want a, but in case  we match
+// against [0, 0, 13, 0, 1, 5], then b cannot match in full, so a is prefered.
+// We ideally want to match the longest token...
+
 
 impl GlyphMatcher {
     /// Prepare the glyph matcher from a set of glyphs.
@@ -210,8 +227,13 @@ impl GlyphMatcher {
             ));
             let mut edges: String = String::new();
 
+            if n.glyphs.contains(&70)
+            {
+                println!("HELP\n{n:?}");
+            }
+
             if n.children.is_empty() {
-                let glyphs = n
+                let glyph_string = n
                     .glyphs
                     .iter()
                     .map(|x| &glyphs[*x])
@@ -220,8 +242,7 @@ impl GlyphMatcher {
                     .join(", ")
                     .replace("\\", "\\\\")
                     .replace('"', "\\\"");
-
-                r.push_str(&format!("<base> {} Leaf: {}", n.glyphs.len(), glyphs));
+                r.push_str(&format!("<base> {} Leaf: {}", n.glyphs.len(), glyph_string));
             } else {
                 r.push_str(&format!("<base> [{}] {} Glyphs ", index, n.glyphs.len()));
             }
