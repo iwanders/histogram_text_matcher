@@ -177,6 +177,81 @@ impl GlyphMatcher {
         }
         None
     }
+
+    pub fn to_dot(&self, glyphs: &[Glyph]) -> String
+    {
+        let mut res: String = String::new();
+        res.push_str(r#"digraph g {
+                        fontname="Helvetica,Arial,sans-serif"
+                        node [fontname="Helvetica,Arial,sans-serif"]
+                        edge [fontname="Helvetica,Arial,sans-serif"]
+                        graph [
+                            rankdir = "LR"
+                        ];
+                        node [
+                            fontsize = "16"
+                            shape = "ellipse"
+                        ];
+                        edge [
+                        ];
+                    "#);
+
+        /*
+            "node0" [
+            label = "<f0> 0x10ba8| <f1>"
+            shape = "record"
+            ];
+            "node1" [
+            label = "<f0> 0xf7fc4380| <f1> | <f2> |-1"
+            shape = "record"
+            ];
+            "node0":f0 -> "node1":f0 [
+            id = 0
+            ];
+        */
+        fn recurser(glyphs: &[Glyph], r: &mut String, n: &Node, index: usize)
+        {
+            r.push_str(&format!(r#""n{:p}" [
+            shape = "record"
+            label = ""#, n));
+            let mut edges: String = String::new();
+
+            if n.children.is_empty()
+            {
+                let glyphs = n.glyphs.iter().map(|x| {&glyphs[*x]}).map(|g|{g.glyph.clone()}).collect::<Vec<String>>().join(", ").replace("\\", "\\\\").replace('"', "\\\"");
+                r.push_str(&format!("<base> {} descendants: {}", n.glyphs.len(), glyphs));
+            }
+            else
+            {
+                r.push_str(&format!("<base> {} glyphs ", n.glyphs.len()));
+            }
+
+            let mut childs : String = String::new();
+            for (i, v) in n.children.iter().enumerate()
+            {
+                r.push_str(&format!(r#" | <f{}> {}"#, i, i));
+                if let Some(z) = v
+                {
+                    recurser(glyphs, &mut childs, z, index + 1);
+                    edges.push_str(&format!(r#"
+                        "n{:p}":f{} -> "n{:p}":base [
+                        ];
+                        "#, n, i, z));
+
+                }
+            }
+            r.push_str("\"\n");
+            r.push_str("];\n");
+
+            r.push_str(&edges);
+            r.push_str(&childs);
+        }
+
+        recurser(glyphs, &mut res, &self.tree, 0);
+        res.push_str("}\n");
+
+        res
+    }
 }
 
 /// GlyphSet holds a collection of glyphs and associated data.

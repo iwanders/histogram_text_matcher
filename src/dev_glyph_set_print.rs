@@ -46,5 +46,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let _ = image.save(&output_path).unwrap();
 
+
+    use std::fs::File;
+    use std::io::Write;
+    let mut file = File::create("/tmp/glyphs.dot")?;
+    file.write(glyph_set.matcher.to_dot(&glyph_set.entries).as_bytes())?;
+
     Ok(())
 }
