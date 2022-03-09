@@ -140,11 +140,10 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
-    fn _pattern_matches(pattern: &[u8], to_match: &[Bin]) -> bool
-    {
+    fn _pattern_matches(pattern: &[u8], to_match: &[Bin]) -> bool {
         let min = std::cmp::min(pattern.len(), to_match.len());
-        let a = pattern[0..min].iter().map(|x|{*x});
-        let b = to_match[0..min].iter().map(|x|{x.count as u8});
+        let a = pattern[0..min].iter().map(|x| *x);
+        let b = to_match[0..min].iter().map(|x| x.count as u8);
         a.eq(b)
     }
 
@@ -153,7 +152,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     let mut use_stripped = true;
 
     // The histogram as a slice of u32s.
-    let bin32 = histogram.iter().map(|x|{x.count}).collect::<Vec<u32>>();
+    let bin32 = histogram.iter().map(|x| x.count).collect::<Vec<u32>>();
 
     while i < histogram.len() - 1 {
         // If we are using stripped symbols, remove the padding from the left, this will be very
@@ -188,14 +187,12 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
             }
         }
 
-
         // CONSIDER: Splitting the histogram by labels at the start, then match on the labels.
         // Next, make sure we only match the label found in the first bin.
         // This is problematic... Since space between letters may not have the label set.
         // Disabled this for now. See CONSIDER_MATCH_LABEL.
         // let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
         // let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
-
 
         /*
         // This was the old linear search over all glyphs.
@@ -224,15 +221,12 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         */
 
         let index_of_min: Option<usize>;
-        if !use_stripped
-        {
+        if !use_stripped {
             let z = &bin32[i..];
             index_of_min = set.matcher.find_match(z);
-        }
-        else
-        {
+        } else {
             let z = &bin32[i..];
-            index_of_min = set.stripped_matcher.find_match(z);
+            index_of_min = set.lstrip_matcher.find_match(z);
         }
 
         if let Some(best) = index_of_min {
@@ -373,7 +367,6 @@ fn decide_on_matches<'a>(
     // So, whitespace in matches, which delimit the consecutive glyph blocks.
     let mut match_index: usize = 0;
     while match_index < matches.len() {
-
         // Skip over whitespace matches
         if let Token::WhiteSpace(_) = matches[match_index].token {
             match_index += 1;
@@ -475,7 +468,6 @@ fn decide_on_matches<'a>(
         }
     }
 }
-
 
 /// Function to slide a window over an image and match glyphs for each histogram thats created.
 pub fn moving_windowed_histogram<'a>(

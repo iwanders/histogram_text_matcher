@@ -84,27 +84,27 @@ impl Glyph {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Node {
-    children: Vec<Option<Node>>,  // indexed by histogram size.
+    children: Vec<Option<Node>>, // indexed by histogram size.
     glyphs: Vec<usize>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
-pub struct GlyphMatcher
-{
+pub struct GlyphMatcher {
     pub tree: Node,
 }
 
-fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped: bool)
-{
+fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped: bool) {
     // Iterate through all the glyph indices in this node.
-    for i in n.glyphs.iter()
-    {
+    for i in n.glyphs.iter() {
         let glyph = &glyphs[*i];
-        let hist = if stripped {glyph.lstrip_hist()} else {glyph.hist()};
+        let hist = if stripped {
+            glyph.lstrip_hist()
+        } else {
+            glyph.hist()
+        };
 
         // Skip this glyph if its histogram is smaller than the current index being assigned.
-        if hist.len() <= index
-        {
+        if hist.len() <= index {
             continue;
         }
 
@@ -113,17 +113,16 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
         let pos_in_children = hist[index] as usize;
 
         // Ensure the children vector is appropriate size.
-        n.children.resize(std::cmp::max(n.children.len(),pos_in_children + 1), None);
+        n.children
+            .resize(std::cmp::max(n.children.len(), pos_in_children + 1), None);
 
         // If it is currently a None value, create a child entry in this slot.
-        if let None = &n.children[pos_in_children]
-        {
+        if let None = &n.children[pos_in_children] {
             n.children[pos_in_children] = Some(Default::default());
         }
 
         // Finally, assign this glyph index into this child.
-        if let Some(child) = n.children[pos_in_children].as_mut()
-        {
+        if let Some(child) = n.children[pos_in_children].as_mut() {
             child.glyphs.push(*i);
         }
     }
@@ -131,19 +130,15 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
     // Finally, iterate over all the populated entries in the children vector
     // and ensure they get populated, recursing. Recursion terminates when the
     // children vector stays empty (at the leafs).
-    for child in n.children.iter_mut()
-    {
-        if let Some(mut child_node) =  child.as_mut()
-        {
+    for child in n.children.iter_mut() {
+        if let Some(mut child_node) = child.as_mut() {
             recurse_glyph_matching(&mut child_node, &glyphs, index + 1, stripped);
         }
     }
 }
 
-impl GlyphMatcher
-{
-    pub fn prepare(&mut self, glyphs: &[Glyph], stripped: bool)
-    {
+impl GlyphMatcher {
+    pub fn prepare(&mut self, glyphs: &[Glyph], stripped: bool) {
         // Assign the first node with all possible glyph indices.
         self.tree.glyphs = (0..glyphs.len()).collect::<_>();
         // recurse from the first index and build out the tree.
@@ -153,36 +148,29 @@ impl GlyphMatcher
     /// Find a glyph matching the provided histogram. Returns None if no glyph exactly matches this
     /// histogram, if multiple glyphs would match perfectly it returns the one that occured earliest
     /// in the original slice used to setup the glyph matcher.
-    pub fn find_match(&self, histogram: &[u32]) -> Option<usize>
-    {
+    pub fn find_match(&self, histogram: &[u32]) -> Option<usize> {
         let mut c: &Node = &self.tree;
 
         // Iterate through the values in d.
         for k in histogram.iter() {
-
             // Use the value in the histrogram as index.
             let v = *k as usize;
 
-            if c.children.len() == 0
-            {
+            if c.children.len() == 0 {
                 // Return the glyph... we must have one, otherwise 'c' would be None.
                 // We may have multiple though, in that case the glyph set is ambiguous.
                 return Some(c.glyphs[0]);
             }
 
             // If v exceeds the length of children, we for sure don't have this glyph.
-            if v >= c.children.len()
-            {
+            if v >= c.children.len() {
                 return None;
             }
 
             // Check if we have a new node in our search tree at this histogram value.
-            if let Some(ref new_c) = c.children[v]
-            {
-                c = new_c;  // assign new position.
-            }
-            else
-            {
+            if let Some(ref new_c) = c.children[v] {
+                c = new_c; // assign new position.
+            } else {
                 // Indexing into children resulted in None, there's no glyph matching this.
                 return None;
             }
@@ -208,7 +196,7 @@ pub struct GlyphSet {
     #[serde(skip)]
     pub matcher: GlyphMatcher,
     #[serde(skip)]
-    pub stripped_matcher: GlyphMatcher,
+    pub lstrip_matcher: GlyphMatcher,
 }
 
 impl GlyphSet {
@@ -218,7 +206,7 @@ impl GlyphSet {
             entry.prepare();
         }
         self.matcher.prepare(&self.entries, false);
-        self.stripped_matcher.prepare(&self.entries, true);
+        self.lstrip_matcher.prepare(&self.entries, true);
     }
 }
 

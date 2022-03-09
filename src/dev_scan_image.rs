@@ -17,13 +17,15 @@ fn make_html<'a>(
     for (i, m) in matches.iter().enumerate() {
         rects.push_str(&format!(
             r#"<rect id="roi_{i}" class="area-of-interest"
-                width="{w}"
-                height="{h}"
-                x="{l}"
-                y="{t}"
-                onmousemove="mouse_move(event, {i});"
-                onmouseout="mouse_out(event, {i});"
-                onclick="mouse_click(event, {i});" />\n"#,
+                    width="{w}"
+                    height="{h}"
+                    x="{l}"
+                    y="{t}"
+                    onmousemove="mouse_move(event, {i});"
+                    onmouseout="mouse_out(event, {i});"
+                    onclick="mouse_click(event, {i});"
+                />
+                "#,
             l = m.location.left(),
             t = m.location.bottom(),
             w = m.location.width(),
@@ -117,7 +119,8 @@ fn make_html<'a>(
                 <div id="tooltip-combined"  xmlns="http://www.w3.org/1999/xhtml">
                 </div>
             </foreignObject>
-        </g>"#,
+        </g>
+        "#,
     ));
 
     c.push_str(&"</svg></body></html>");
@@ -152,7 +155,13 @@ fn main() {
 
     let image = histogram_text_matcher::image_support::rgb_image_to_view(&orig_image);
     use histogram_text_matcher::RGB;
-    let labels = vec![(RGB::white(), 0), (RGB::rgb(238, 238, 238), 1), (RGB::rgb(100, 100, 255), 1), (RGB::rgb(194, 192, 107), 1), (RGB::rgb(194, 172, 109), 4)];
+    let labels = vec![
+        (RGB::white(), 0),
+        (RGB::rgb(238, 238, 238), 1),
+        (RGB::rgb(100, 100, 255), 1),
+        (RGB::rgb(194, 192, 107), 1),
+        (RGB::rgb(194, 172, 109), 4),
+    ];
 
     let now = Instant::now();
     let matches = histogram_text_matcher::moving_windowed_histogram(&image, &glyph_set, &labels);
