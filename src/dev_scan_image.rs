@@ -151,7 +151,8 @@ fn main() {
         .to_rgb8();
 
     let image = histogram_text_matcher::image_support::rgb_image_to_view(&orig_image);
-    let labels = vec![(histogram_text_matcher::RGB::white(), 0)];
+    use histogram_text_matcher::RGB;
+    let labels = vec![(RGB::white(), 0), (RGB::rgb(238, 238, 238), 1), (RGB::rgb(100, 100, 255), 1), (RGB::rgb(194, 192, 107), 1), (RGB::rgb(194, 172, 109), 4)];
 
     let now = Instant::now();
     let matches = histogram_text_matcher::moving_windowed_histogram(&image, &glyph_set, &labels);

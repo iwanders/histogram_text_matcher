@@ -10,6 +10,11 @@ pub struct RGB {
 }
 
 impl RGB {
+    pub fn rgb(r: u8, g: u8, b: u8) -> Self
+    {
+        RGB {r, g, b}
+    }
+
     pub fn white() -> Self {
         RGB {
             r: 255,

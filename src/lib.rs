@@ -25,11 +25,12 @@ pub mod image_support;
           We need something to limit this from occuring more than 'n' times in a row and
           perform strip on the glyph sequence afterwards.
         - Token matcher can't split based on the labels, because the histogram may have labels
-          in between glyphs that weren't colored appropriately. Search for CONSIDER_MATCH_LABEL.
+          in between glyphs that weren't colored appropriately. If we need this, we could set the
+          histogram labels to a sentinel, and ignore sentinels in this split.
+          Search for CONSIDER_MATCH_LABEL.
 
     Current issues:
         - Need a way to deal with non-perfect GlyphSet objects... disregard whitespace < N
-        - Current decider is problematic?
 */
 
 /// Function to match a single color in an image and convert this to a histogram.
@@ -57,6 +58,7 @@ fn calc_score_min(pattern: &[u8], to_match: &[u8], min_width: usize) -> u8 {
     res
 }
 
+/// Simple histogram matcher that removes any zero bins and just matches lowest scoring glyphs.
 pub fn histogram_glyph_matcher(
     histogram: &[u8],
     set: &glyphs::GlyphSet,
@@ -138,7 +140,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
-    fn pattern_matches(pattern: &[u8], to_match: &[Bin]) -> bool
+    fn _pattern_matches(pattern: &[u8], to_match: &[Bin]) -> bool
     {
         let min = std::cmp::min(pattern.len(), to_match.len());
         let a = pattern[0..min].iter().map(|x|{*x});
@@ -150,6 +152,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     // to compare.
     let mut use_stripped = true;
 
+    // The histogram as a slice of u32s.
     let bin32 = histogram.iter().map(|x|{x.count}).collect::<Vec<u32>>();
 
     while i < histogram.len() - 1 {
@@ -185,8 +188,6 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
             }
         }
 
-        // We got a non zero entry in the first bin now.
-        let remainder = &histogram[i..];
 
         // CONSIDER: Splitting the histogram by labels at the start, then match on the labels.
         // Next, make sure we only match the label found in the first bin.
@@ -195,9 +196,34 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         // let max_index = remainder.iter().position(|x| x.label != remainder[0].label);
         // let remainder = &histogram[i..i + max_index.unwrap_or(remainder.len())];
 
+
+        /*
+        // This was the old linear search over all glyphs.
+        // It should be re-evaluated when we can order the glyphs by occurence rate
+        // it may be more performant than the more random access of the matcher.
+
         // Get the first glyph that matches with zero cost:
         let mut index_of_min: Option<usize> = None;
 
+        // We got a non zero entry in the first bin now.
+        let remainder = &histogram[i..];
+
+        for (zz, glyph) in set.entries.iter().enumerate() {
+            let hist_to_use = if use_stripped {
+                glyph.lstrip_hist()
+            } else {
+                glyph.hist()
+            };
+
+          let exactly_equal = _pattern_matches(hist_to_use, remainder);
+          if exactly_equal {
+            index_of_min = Some(zz);
+            break;
+          }
+        }
+        */
+
+        let index_of_min: Option<usize>;
         if !use_stripped
         {
             let z = &bin32[i..];
@@ -244,6 +270,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     res
 }
 
+/// Struct to represent a rectangle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Rect {
     pub x: u32,
@@ -253,6 +280,7 @@ pub struct Rect {
 }
 
 impl Rect {
+    /// Return whether this rectangle overlaps with the provided rectangle. Including boundary.
     pub fn overlaps(&self, b: &Rect) -> bool {
         self.right() >= b.left()
             && b.right() >= self.left()
@@ -260,22 +288,32 @@ impl Rect {
             && b.top() >= self.bottom()
     }
 
+    /// The highest y value of the rectangle (bottom in image coordinates!)
     pub fn top(&self) -> u32 {
         self.y + self.h
     }
+
+    /// The lowest y value of the rectangle (top in image coordinates!)
     pub fn bottom(&self) -> u32 {
         self.y
     }
 
+    /// The lowest x value of the rectangle.
     pub fn left(&self) -> u32 {
         self.x
     }
+
+    /// The highest x value of the rectangle.
     pub fn right(&self) -> u32 {
         self.x + self.w
     }
+
+    /// The width of the rectangle.
     pub fn width(&self) -> u32 {
         self.w
     }
+
+    /// The height of the rectangle.
     pub fn height(&self) -> u32 {
         self.h
     }
@@ -335,6 +373,8 @@ fn decide_on_matches<'a>(
     // So, whitespace in matches, which delimit the consecutive glyph blocks.
     let mut match_index: usize = 0;
     while match_index < matches.len() {
+
+        // Skip over whitespace matches
         if let Token::WhiteSpace(_) = matches[match_index].token {
             match_index += 1;
             continue;
@@ -349,11 +389,13 @@ fn decide_on_matches<'a>(
                         == std::mem::discriminant(&Token::WhiteSpace(0))
                 })
                 .unwrap_or(matches.len() - match_index);
-            // println!("block_end  {block_end}");
+
+            // Determine the slice of glyphs, first and last.
             let glyphs = &matches[match_index..match_index + block_end];
             let first_glyph = glyphs.first().expect("never empty");
             let last_glyph = glyphs.last().expect("never empty");
 
+            // Use the width of the match and to create a bounding box for this glyph block.
             let block_width = last_glyph.position + last_glyph.width - first_glyph.position;
             let this_block_region = Rect {
                 x: first_glyph.position,
@@ -362,6 +404,17 @@ fn decide_on_matches<'a>(
                 h: window_size,
             };
 
+            // Determine the number of pixels this glyph sequence matched.
+            let current_matching = glyphs
+                .iter()
+                .map(|z| {
+                    if let Token::Glyph { glyph, .. } = z.token {
+                        glyph.total()
+                    } else {
+                        0
+                    }
+                })
+                .fold(0, |x, a| x + a);
             // Now, we need to decide whether this block of glyphs is better than the ones currently
             // in res_consider.
 
@@ -374,29 +427,23 @@ fn decide_on_matches<'a>(
             *res_consider = res_consider
                 .drain(..)
                 .filter(|m| {
-                    if m.location.overlaps(&this_block_region) {
-                        if do_insert == false {
-                            return true; // already discarded current glyph.
-                        }
+                    if do_insert == false {
+                        return true; // already discarded current glyph, keep everything.
+                    }
 
+                    // Check if this block overlaps the match were checking against.
+                    if m.location.overlaps(&this_block_region) {
                         // We overlap, and the current glyph sequence is still under consideration;
-                        // Decide if better, more matching pixels is better:
-                        let current = glyphs
-                            .iter()
-                            .map(|z| {
-                                if let Token::Glyph { glyph, .. } = z.token {
-                                    glyph.total()
-                                } else {
-                                    0
-                                }
-                            })
-                            .fold(0, |x, a| x + a);
+                        // Decide if better, more matching pixels is better, likely a longer
+                        // word, or more complex glyph got matched.
                         let mlen = m
                             .tokens
                             .iter()
                             .map(|z| z.glyph.total())
                             .fold(0, |x, a| x + a);
-                        let new_is_better = current >= mlen;
+
+                        // Make the decision.
+                        let new_is_better = current_matching >= mlen;
 
                         if !new_is_better {
                             // new is not better than what we have
@@ -406,12 +453,12 @@ fn decide_on_matches<'a>(
                             return false; // drop old.
                         }
                     }
-                    return true; // no overlap, always consideration.
+                    return true; // no overlap, always keep m under consideration.
                 })
                 .collect::<_>();
 
             if do_insert {
-                // we pruned boxes, so the new one must be better.
+                // We should insert our current entry.
                 res_consider.push_back(Match2D {
                     tokens: glyphs
                         .iter()
@@ -430,7 +477,7 @@ fn decide_on_matches<'a>(
 }
 
 
-
+/// Function to slide a window over an image and match glyphs for each histogram thats created.
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
     set: &'a glyphs::GlyphSet,

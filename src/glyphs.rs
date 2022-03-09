@@ -99,7 +99,6 @@ pub struct GlyphMatcher
 fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped: bool)
 {
     // Obtain the highest histogram bin value in this index.
-    let mut highest_value = 0;
     for i in n.glyphs.iter()
     {
         let glyph = &glyphs[*i];
@@ -119,7 +118,7 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
             n.children[pos_in_child] = Some(Default::default());
         }
 
-        if let Some(mut child) = n.children[pos_in_child].as_mut()
+        if let Some(child) = n.children[pos_in_child].as_mut()
         {
             child.glyphs.push(*i);
         }
