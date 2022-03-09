@@ -46,7 +46,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let _ = image.save(&output_path).unwrap();
 
-
     use std::fs::File;
     use std::io::Write;
     let mut file = File::create("/tmp/glyphs.dot")?;

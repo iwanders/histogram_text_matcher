@@ -138,6 +138,9 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
 }
 
 impl GlyphMatcher {
+    /// Prepare the glyph matcher from a set of glyphs.
+    /// If stripped is true, lstrip_hist is used.
+    /// If minimal is true, the decision graph is cut short if only one glyph remains.
     pub fn prepare(&mut self, glyphs: &[Glyph], stripped: bool) {
         // Assign the first node with all possible glyph indices.
         self.tree.glyphs = (0..glyphs.len()).collect::<_>();
@@ -178,70 +181,65 @@ impl GlyphMatcher {
         None
     }
 
-    pub fn to_dot(&self, glyphs: &[Glyph]) -> String
-    {
+    pub fn to_dot(&self, glyphs: &[Glyph]) -> String {
         let mut res: String = String::new();
-        res.push_str(r#"digraph g {
-                        fontname="Helvetica,Arial,sans-serif"
-                        node [fontname="Helvetica,Arial,sans-serif"]
-                        edge [fontname="Helvetica,Arial,sans-serif"]
-                        graph [
-                            rankdir = "LR"
-                        ];
-                        node [
-                            fontsize = "16"
-                            shape = "ellipse"
-                        ];
-                        edge [
-                        ];
-                    "#);
+        res.push_str(
+            r#"digraph g {
+                fontname="Helvetica,Arial,sans-serif"
+                node [fontname="Helvetica,Arial,sans-serif"]
+                edge [fontname="Helvetica,Arial,sans-serif"]
+                graph [
+                    rankdir = "LR"
+                ];
+                node [
+                    fontsize = "16"
+                    shape = "ellipse"
+                ];
+                edge [
+                ];
+            "#,
+        );
 
-        /*
-            "node0" [
-            label = "<f0> 0x10ba8| <f1>"
-            shape = "record"
-            ];
-            "node1" [
-            label = "<f0> 0xf7fc4380| <f1> | <f2> |-1"
-            shape = "record"
-            ];
-            "node0":f0 -> "node1":f0 [
-            id = 0
-            ];
-        */
-        fn recurser(glyphs: &[Glyph], r: &mut String, n: &Node, index: usize)
-        {
-            r.push_str(&format!(r#""n{:p}" [
-            shape = "record"
-            label = ""#, n));
+        fn recurser(glyphs: &[Glyph], r: &mut String, n: &Node, index: usize) {
+            r.push_str(&format!(
+                r#"
+                    "n{:p}" [
+                        shape = "record"
+                        label = ""#,
+                n
+            ));
             let mut edges: String = String::new();
 
-            if n.children.is_empty()
-            {
-                let glyphs = n.glyphs.iter().map(|x| {&glyphs[*x]}).map(|g|{g.glyph.clone()}).collect::<Vec<String>>().join(", ").replace("\\", "\\\\").replace('"', "\\\"");
-                r.push_str(&format!("<base> {} descendants: {}", n.glyphs.len(), glyphs));
-            }
-            else
-            {
-                r.push_str(&format!("<base> {} glyphs ", n.glyphs.len()));
+            if n.children.is_empty() {
+                let glyphs = n
+                    .glyphs
+                    .iter()
+                    .map(|x| &glyphs[*x])
+                    .map(|g| g.glyph.clone())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+                    .replace("\\", "\\\\")
+                    .replace('"', "\\\"");
+
+                r.push_str(&format!("<base> {} Leaf: {}", n.glyphs.len(), glyphs));
+            } else {
+                r.push_str(&format!("<base> [{}] {} Glyphs ", index, n.glyphs.len()));
             }
 
-            let mut childs : String = String::new();
-            for (i, v) in n.children.iter().enumerate()
-            {
+            let mut childs: String = String::new();
+            for (i, v) in n.children.iter().enumerate() {
                 r.push_str(&format!(r#" | <f{}> {}"#, i, i));
-                if let Some(z) = v
-                {
+                if let Some(z) = v {
                     recurser(glyphs, &mut childs, z, index + 1);
-                    edges.push_str(&format!(r#"
-                        "n{:p}":f{} -> "n{:p}":base [
-                        ];
-                        "#, n, i, z));
-
+                    edges.push_str(&format!(
+                        r#"
+                    "n{:p}":f{} -> "n{:p}":base [];
+                    "#,
+                        n, i, z
+                    ));
                 }
             }
-            r.push_str("\"\n");
-            r.push_str("];\n");
+            r.push_str("\"\n                    ];\n");
 
             r.push_str(&edges);
             r.push_str(&childs);
