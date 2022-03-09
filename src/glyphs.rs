@@ -85,7 +85,13 @@ impl Glyph {
 /// A node in the lookup table tree.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Node {
-    children: Vec<Option<Node>>, // indexed by histogram size.
+    /// Vector holding children, indexed by value in this histogram bin.
+    children: Vec<Option<Node>>,
+    /// Histogram index where this node is located.
+    index: usize,
+    /// Glyphs that terminate at this node because of length.
+    leafs: Vec<usize>,
+    /// All glyphs that are in this node and its descendents.
     glyphs: Vec<usize>,
 }
 
@@ -108,6 +114,7 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
 
         // Skip this glyph if its histogram is smaller than the current index being assigned.
         if hist.len() <= index {
+            n.leafs.push(*i);
             continue;
         }
 
@@ -126,6 +133,7 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
 
         // Finally, assign this glyph index into this child.
         if let Some(child) = n.children[pos_in_children].as_mut() {
+            child.index = index;
             child.glyphs.push(*i);
         }
     }
@@ -179,7 +187,11 @@ impl GlyphMatcher {
             if c.children.len() == 0 {
                 // Return the glyph... we must have one, otherwise 'c' would be None.
                 // We may have multiple though, in that case the glyph set is ambiguous.
-                return Some(c.glyphs[0]);
+                return match c.leafs.get(0)
+                {
+                    Some(g) => Some(*g),
+                    _ => None,
+                }
             }
 
             // If v exceeds the length of children, we for sure don't have this glyph.
@@ -227,25 +239,8 @@ impl GlyphMatcher {
             ));
             let mut edges: String = String::new();
 
-            if n.glyphs.contains(&70)
-            {
-                println!("HELP\n{n:?}");
-            }
 
-            if n.children.is_empty() {
-                let glyph_string = n
-                    .glyphs
-                    .iter()
-                    .map(|x| &glyphs[*x])
-                    .map(|g| g.glyph.clone())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-                    .replace("\\", "\\\\")
-                    .replace('"', "\\\"");
-                r.push_str(&format!("<base> {} Leaf: {}", n.glyphs.len(), glyph_string));
-            } else {
-                r.push_str(&format!("<base> [{}] {} Glyphs ", index, n.glyphs.len()));
-            }
+            r.push_str(&format!("<base> [{}] {} Glyphs ", index, n.glyphs.len()));
 
             let mut childs: String = String::new();
             for (i, v) in n.children.iter().enumerate() {
@@ -260,7 +255,44 @@ impl GlyphMatcher {
                     ));
                 }
             }
+
             r.push_str("\"\n                    ];\n");
+            // If glyphs were put in the leafs vector, show those here.
+            if !n.leafs.is_empty()
+            {
+        
+                let glyph_string = n
+                    .leafs
+                    .iter()
+                    .map(|x| &glyphs[*x])
+                    .map(|g| g.glyph.clone())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+                    .replace("\\", "\\\\")
+                    .replace('"', "\\\"");
+                r.push_str(&format!(
+                    r#"
+                        "n{:p}_leafs" [
+                            shape = "record"
+                            label = ""#,
+                    n
+                ));
+                r.push_str(&format!("<base> {} Leaf: {}", n.leafs.len(), glyph_string));
+                r.push_str("\"\n                        ");
+                if n.leafs.len() > 1
+                {
+                    r.push_str("fillcolor = red\n                        ");
+                    r.push_str("style = filled\n                        ");
+                }
+                r.push_str("\n                        ];\n");
+                edges.push_str(&format!(
+                    r#"
+                "n{:p}":base -> "n{:p}_leafs":base [];
+                "#,
+                    n,  n,
+                ));
+                
+            }
 
             r.push_str(&edges);
             r.push_str(&childs);
