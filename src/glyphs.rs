@@ -47,13 +47,19 @@ impl Glyph {
     /// Prepare the glyph for use.
     fn prepare(&mut self) {
         let mut i = 0usize;
-        while self.hist[i] == 0 && i < self.hist.len() {
+        while i < self.hist.len() && self.hist[i] == 0 {
             i += 1;
         }
         self.lstrip_hist = self.hist[i..].to_vec();
 
         self.total = self.hist.iter().fold(0u32, |x, a| x + *a as u32);
-        self.first_non_zero = self.hist().len() - self.lstrip_hist().len();
+
+        // First non zero gets set to index 0 in case histogram is only zeros.
+        self.first_non_zero = if i < self.hist.len() {
+            self.hist().len() - self.lstrip_hist().len()
+        } else {
+            0
+        };
     }
 
     /// Total number of pixels in the histogram.
