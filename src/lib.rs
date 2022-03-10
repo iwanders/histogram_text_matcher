@@ -109,15 +109,15 @@ pub fn histogram_glyph_matcher(
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 struct Bin {
     count: u32,
-    label: usize,
+    label: u32,
 }
 
-type ColorLabel = (RGB, usize);
+type ColorLabel = (RGB, u32);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LabelledGlyph<'a> {
     pub glyph: &'a glyphs::Glyph,
-    pub label: usize,
+    pub label: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,7 +125,7 @@ enum Token<'a> {
     WhiteSpace(usize), // Value denotes amount of whitespace pixels.
     Glyph {
         glyph: &'a glyphs::Glyph,
-        label: usize,
+        label: u32,
     },
 }
 
