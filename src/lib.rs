@@ -8,6 +8,8 @@ pub mod glyphs;
 mod interface;
 pub use interface::*;
 
+pub mod matcher;
+
 /// Type to hold a simple 1D histogram.
 pub type SimpleHistogram = Vec<u8>;
 
@@ -107,9 +109,16 @@ pub fn histogram_glyph_matcher(
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
-struct Bin {
-    count: u32,
-    label: u32,
+pub struct Bin {
+    pub count: u32,
+    pub label: u32,
+}
+impl Bin
+{
+    pub fn vec(v: &[u32]) -> Vec<Bin>
+    {
+        v.iter().map(|x| { Bin{count: *x, label: 0} }).collect()
+    }
 }
 
 type ColorLabel = (RGB, u32);
@@ -136,7 +145,16 @@ struct Match<'a> {
     pub width: u32,
 }
 
-fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Match<'a>> {
+
+pub trait Matcher
+{
+    // fn find_match<'a>(&self, histogram: &[Bin]) -> Vec<Match<'a>>;
+    fn find_match<'a>(&self, histogram: &[Bin]) -> Option<usize>;
+    // fn lstrip_find_match<'a>(&self, histogram: &[Bin]) -> Vec<Match<'a>>;
+    fn lstrip_find_match<'a>(&self, histogram: &[Bin]) -> Option<usize>;
+}
+
+fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet, matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
@@ -150,9 +168,6 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
     // Boolean to keep track of whether we are using stripped values or non stripped values
     // to compare.
     let mut use_stripped = true;
-
-    // The histogram as a slice of u32s.
-    let bin32 = histogram.iter().map(|x| x.count).collect::<Vec<u32>>();
 
     while i < histogram.len() - 1 {
         // If we are using stripped symbols, remove the padding from the left, this will be very
@@ -220,13 +235,14 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet) -> Vec<Ma
         }
         */
 
+        let remainder = &histogram[i..];
         let index_of_min: Option<usize>;
         if !use_stripped {
-            let z = &bin32[i..];
-            index_of_min = set.matcher.find_match(z);
+            // let z = &bin32[i..];
+            index_of_min = matcher.find_match(&remainder);
         } else {
-            let z = &bin32[i..];
-            index_of_min = set.lstrip_matcher.find_match(z);
+            // let z = &bin32[i..];
+            index_of_min = matcher.lstrip_find_match(&remainder);
         }
 
         if let Some(best) = index_of_min {
@@ -469,10 +485,12 @@ fn decide_on_matches<'a>(
     }
 }
 
+
 /// Function to slide a window over an image and match glyphs for each histogram thats created.
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
     set: &'a glyphs::GlyphSet,
+    matcher: &'a dyn Matcher,
     labels: &[ColorLabel],
 ) -> Vec<Match2D<'a>> {
     let mut res_final: Vec<Match2D<'a>> = Vec::new();
@@ -511,7 +529,7 @@ pub fn moving_windowed_histogram<'a>(
 
         // Find glyphs in the histogram.
         let now = Instant::now();
-        let matches = bin_glyph_matcher(&histogram, &set);
+        let matches = bin_glyph_matcher(&histogram, &set, matcher);
         duration_matcher += now.elapsed().as_secs_f64();
 
         // Decide which matches are to be kept.
@@ -590,10 +608,11 @@ mod tests {
         let hist = image_to_simple_histogram(&image, RGB::white());
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
         let binned = simple_histogram_to_bin_histogram(&hist);
 
-        let matches = bin_glyph_matcher(&binned, &glyph_set);
+        let matches = bin_glyph_matcher(&binned, &glyph_set, &matcher);
         // println!("Histogram: {matches:?}");
 
         for (i, v) in matches.iter().enumerate() {
@@ -610,6 +629,7 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
         let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
         let _ = image
@@ -625,7 +645,7 @@ mod tests {
         println!("hist: {hist:?}");
         let binned = simple_histogram_to_bin_histogram(&hist);
 
-        let matches = bin_glyph_matcher(&binned, &glyph_set);
+        let matches = bin_glyph_matcher(&binned, &glyph_set, &matcher);
         // println!("Histogram: {matches:?}");
 
         let mut glyph_counter = 0;
@@ -643,13 +663,14 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
         println!("glyph_set: {glyph_set:?}");
 
         let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
         let image = image_support::rgb_image_to_view(&image);
         let labels = vec![(RGB::white(), 0)];
 
-        let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
+        let matches = moving_windowed_histogram(&image, &glyph_set, &matcher, &labels);
         for m in matches.iter() {
             let location = &m.location;
             print!("{location:?} -> ");
@@ -667,6 +688,7 @@ mod tests {
         let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
         glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
         use image::Rgb;
         use rusttype::Font;
@@ -701,7 +723,7 @@ mod tests {
         let image = image_support::rgb_image_to_view(&image);
         let labels = vec![(RGB::white(), 0), (RGB::red(), 1)];
 
-        let matches = moving_windowed_histogram(&image, &glyph_set, &labels);
+        let matches = moving_windowed_histogram(&image, &glyph_set, &matcher, &labels);
         for m in matches.iter() {
             let location = &m.location;
             print!("{location:?} -> ");
@@ -732,6 +754,7 @@ mod tests {
         glyph_set.entries.push(glyphs::Glyph::new(&s5, &"s5"));
         glyph_set.entries.push(glyphs::Glyph::new(&s6, &"s6"));
         glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
         println!("Glyph set: {glyph_set:?}");
 
         let mut input: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -750,7 +773,7 @@ mod tests {
 
         let binned = simple_histogram_to_bin_histogram(&input);
 
-        let matches = bin_glyph_matcher(&binned, &glyph_set);
+        let matches = bin_glyph_matcher(&binned, &glyph_set, &matcher);
         let mut glyph_counter = 0;
         for (i, v) in matches.iter().enumerate() {
             println!("{i}: {v:?}");

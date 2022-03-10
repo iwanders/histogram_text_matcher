@@ -10,6 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_path = std::env::args().nth(2).expect("No output file specified.");
 
     let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&PathBuf::from(&file_path))?;
+    let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
     let line_offset: u32 = 10;
     let line_height = glyph_set.line_height as u32 + line_offset;
@@ -49,12 +50,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Write;
     let mut file = File::create("/tmp/glyphs.dot")?;
-    file.write(glyph_set.matcher.to_dot(&glyph_set.entries).as_bytes())?;
+    file.write(matcher.matcher().to_dot(&glyph_set.entries).as_bytes())?;
 
     let mut file = File::create("/tmp/glyphs_lstrip.dot")?;
     file.write(
-        glyph_set
-            .lstrip_matcher
+        matcher
+            .lstrip_matcher()
             .to_dot(&glyph_set.entries)
             .as_bytes(),
     )?;
