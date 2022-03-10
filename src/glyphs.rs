@@ -95,7 +95,6 @@ pub struct Node {
     glyphs: Vec<usize>,
 }
 
-
 /// A lookup table based glyph matcher that jumps to offsets based on histogram values.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct GlyphMatcher {
@@ -148,20 +147,6 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
     }
 }
 
-// Currently the glyph matcher (or dot visualisation can't distinguish between:
-// [0, 0, 13, 0, 0]
-// [0, 0, 13, 0, 0, 0]
-// It seems the first one would get discarded in all cases in favour of the second one.
-// Even if the second one would not match against the histogram. The first would become unreachable.
-// A slighly different change would be:
-// 
-// a: [0, 0, 13, 0, 1]
-// b: [0, 0, 13, 0, 1, 3]
-// Matching against [0, 0, 13, 0, 1, 3], in which case we would want a, but in case  we match
-// against [0, 0, 13, 0, 1, 5], then b cannot match in full, so a is prefered.
-// We ideally want to match the longest token...
-
-
 impl GlyphMatcher {
     /// Prepare the glyph matcher from a set of glyphs.
     /// If stripped is true, lstrip_hist is used.
@@ -178,6 +163,16 @@ impl GlyphMatcher {
     /// in the original slice used to setup the glyph matcher.
     pub fn find_match(&self, histogram: &[u32]) -> Option<usize> {
         let mut c: &Node = &self.tree;
+        let mut best: &Node = c;
+
+        macro_rules! return_best {
+            ( ) => {
+                return match best.leafs.get(0) {
+                    Some(g) => Some(*g),
+                    _ => None,
+                }
+            };
+        }
 
         // Iterate through the values in d.
         for k in histogram.iter() {
@@ -185,26 +180,33 @@ impl GlyphMatcher {
             let v = *k as usize;
 
             if c.children.len() == 0 {
-                // Return the glyph... we must have one, otherwise 'c' would be None.
+                // Reached a leaf in the tree, return the glyph... we must have one, otherwise 'c'
+                // would be None.
                 // We may have multiple though, in that case the glyph set is ambiguous.
-                return match c.leafs.get(0)
-                {
+                return match c.leafs.get(0) {
                     Some(g) => Some(*g),
                     _ => None,
-                }
+                };
             }
 
-            // If v exceeds the length of children, we for sure don't have this glyph.
+            // If v exceeds the length of children, we terminate the search and return the
+            // best matching token so far.
             if v >= c.children.len() {
-                return None;
+                return_best!();
             }
 
             // Check if we have a new node in our search tree at this histogram value.
             if let Some(ref new_c) = c.children[v] {
                 c = new_c; // assign new position.
+
+                // If we would have a leaf here, assign it to the best match, because this is a
+                // valid match, but we'll continue searching to find a longer match.
+                if !new_c.leafs.is_empty() {
+                    best = new_c;
+                }
             } else {
-                // Indexing into children resulted in None, there's no glyph matching this.
-                return None;
+                // We got a none, return best matching glyph, or none.
+                return_best!();
             }
         }
         None
@@ -239,7 +241,6 @@ impl GlyphMatcher {
             ));
             let mut edges: String = String::new();
 
-
             r.push_str(&format!("<base> [{}] {} Glyphs ", index, n.glyphs.len()));
 
             let mut childs: String = String::new();
@@ -258,9 +259,7 @@ impl GlyphMatcher {
 
             r.push_str("\"\n                    ];\n");
             // If glyphs were put in the leafs vector, show those here.
-            if !n.leafs.is_empty()
-            {
-        
+            if !n.leafs.is_empty() {
                 let glyph_string = n
                     .leafs
                     .iter()
@@ -279,8 +278,7 @@ impl GlyphMatcher {
                 ));
                 r.push_str(&format!("<base> {} Leaf: {}", n.leafs.len(), glyph_string));
                 r.push_str("\"\n                        ");
-                if n.leafs.len() > 1
-                {
+                if n.leafs.len() > 1 {
                     r.push_str("fillcolor = red\n                        ");
                     r.push_str("style = filled\n                        ");
                 }
@@ -289,9 +287,8 @@ impl GlyphMatcher {
                     r#"
                 "n{:p}":base -> "n{:p}_leafs":base [];
                 "#,
-                    n,  n,
+                    n, n,
                 ));
-                
             }
 
             r.push_str(&edges);
@@ -302,6 +299,42 @@ impl GlyphMatcher {
         res.push_str("}\n");
 
         res
+    }
+}
+
+#[cfg(test)]
+mod matcher_tests {
+    // Following unit test is based on these comments:
+    // Currently the glyph matcher (or dot visualisation can't distinguish between:
+    // [0, 0, 13, 0, 0]
+    // [0, 0, 13, 0, 0, 0]
+    // It seems the first one would get discarded in all cases in favour of the second one.
+    // Even if the second one would not match against the histogram. The first would become unreachable.
+    // A slighly different change would be:
+    //
+    // a: [0, 0, 13, 0, 1]
+    // b: [0, 0, 13, 0, 1, 3]
+    // Matching against [0, 0, 13, 0, 1, 3], in which case we would want a, but in case  we match
+    // against [0, 0, 13, 0, 1, 5], then b cannot match in full, so a is prefered.
+    // We ideally want to match the longest token...
+
+    use super::*;
+    #[test]
+    fn test_take_longest() {
+        let a = Glyph::new(&[0, 0, 13, 0, 0], &"a");
+        let b = Glyph::new(&[0, 0, 13, 0, 0, 0], &"b");
+        let z = [a, b];
+        let mut matcher: GlyphMatcher = Default::default();
+        matcher.prepare(&z, false);
+        // In this case, both a and b would match, but b is the longer match so should be taken.
+        let res = matcher.find_match(&[0, 0, 13, 0, 0, 0, 1]);
+        assert!(res.is_some());
+        assert_eq!(res.unwrap(), 1);
+
+        // This will match a, but not b, we should get a, because it still matches perfectly.
+        let res = matcher.find_match(&[0, 0, 13, 0, 0, 1]);
+        assert!(res.is_some());
+        assert_eq!(res.unwrap(), 0);
     }
 }
 
