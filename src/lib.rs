@@ -113,11 +113,14 @@ pub struct Bin {
     pub count: u32,
     pub label: u32,
 }
-impl Bin
-{
-    pub fn vec(v: &[u32]) -> Vec<Bin>
-    {
-        v.iter().map(|x| { Bin{count: *x, label: 0} }).collect()
+impl Bin {
+    pub fn vec(v: &[u32]) -> Vec<Bin> {
+        v.iter()
+            .map(|x| Bin {
+                count: *x,
+                label: 0,
+            })
+            .collect()
     }
 }
 
@@ -145,16 +148,12 @@ struct Match<'a> {
     pub width: u32,
 }
 
-
-pub trait Matcher
-{
-    // fn find_match<'a>(&self, histogram: &[Bin]) -> Vec<Match<'a>>;
-    fn find_match<'a>(&self, histogram: &[Bin]) -> Option<usize>;
-    // fn lstrip_find_match<'a>(&self, histogram: &[Bin]) -> Vec<Match<'a>>;
-    fn lstrip_find_match<'a>(&self, histogram: &[Bin]) -> Option<usize>;
+pub trait Matcher<'a> {
+    fn find_match(&self, histogram: &[Bin]) -> Option<&'a glyphs::Glyph>;
+    fn lstrip_find_match(&self, histogram: &[Bin]) -> Option<&'a glyphs::Glyph>;
 }
 
-fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet, matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
+fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
@@ -236,18 +235,14 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], set: &'a glyphs::GlyphSet, matcher: 
         */
 
         let remainder = &histogram[i..];
-        let index_of_min: Option<usize>;
+        let glyph_search: Option<&glyphs::Glyph>;
         if !use_stripped {
-            // let z = &bin32[i..];
-            index_of_min = matcher.find_match(&remainder);
+            glyph_search = matcher.find_match(&remainder);
         } else {
-            // let z = &bin32[i..];
-            index_of_min = matcher.lstrip_find_match(&remainder);
+            glyph_search = matcher.lstrip_find_match(&remainder);
         }
 
-        if let Some(best) = index_of_min {
-            let found_glyph = &set.entries[best];
-
+        if let Some(found_glyph) = glyph_search {
             // Calculate the true position, depends on whether we used stripped values.
             let first_non_zero = found_glyph.first_non_zero();
             let position = i as u32 - if use_stripped { first_non_zero } else { 0 } as u32;
@@ -485,7 +480,6 @@ fn decide_on_matches<'a>(
     }
 }
 
-
 /// Function to slide a window over an image and match glyphs for each histogram thats created.
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
@@ -529,7 +523,7 @@ pub fn moving_windowed_histogram<'a>(
 
         // Find glyphs in the histogram.
         let now = Instant::now();
-        let matches = bin_glyph_matcher(&histogram, &set, matcher);
+        let matches = bin_glyph_matcher(&histogram, matcher);
         duration_matcher += now.elapsed().as_secs_f64();
 
         // Decide which matches are to be kept.
@@ -612,7 +606,7 @@ mod tests {
 
         let binned = simple_histogram_to_bin_histogram(&hist);
 
-        let matches = bin_glyph_matcher(&binned, &glyph_set, &matcher);
+        let matches = bin_glyph_matcher(&binned, &matcher);
         // println!("Histogram: {matches:?}");
 
         for (i, v) in matches.iter().enumerate() {
@@ -645,7 +639,7 @@ mod tests {
         println!("hist: {hist:?}");
         let binned = simple_histogram_to_bin_histogram(&hist);
 
-        let matches = bin_glyph_matcher(&binned, &glyph_set, &matcher);
+        let matches = bin_glyph_matcher(&binned, &matcher);
         // println!("Histogram: {matches:?}");
 
         let mut glyph_counter = 0;
@@ -773,7 +767,7 @@ mod tests {
 
         let binned = simple_histogram_to_bin_histogram(&input);
 
-        let matches = bin_glyph_matcher(&binned, &glyph_set, &matcher);
+        let matches = bin_glyph_matcher(&binned, &matcher);
         let mut glyph_counter = 0;
         for (i, v) in matches.iter().enumerate() {
             println!("{i}: {v:?}");

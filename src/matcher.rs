@@ -2,27 +2,26 @@ use crate::glyphs::Glyph;
 
 /// A node in the lookup table tree.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Node {
+pub struct LookupNode<'a> {
     /// Vector holding children, indexed by value in this histogram bin.
-    children: Vec<Option<Node>>,
+    children: Vec<Option<LookupNode<'a>>>,
     /// Histogram index where this node is located.
     index: usize,
     /// Glyphs that terminate at this node because of length.
-    leafs: Vec<usize>,
+    leafs: Vec<&'a Glyph>,
     /// All glyphs that are in this node and its descendents.
-    glyphs: Vec<usize>,
+    glyphs: Vec<&'a Glyph>,
 }
 
 /// A lookup table based glyph matcher that jumps to offsets based on histogram values.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct GlyphMatcher {
-    pub tree: Node,
+pub struct LookupMatcher<'a> {
+    pub tree: LookupNode<'a>,
 }
 
-fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped: bool) {
+fn recurse_glyph_matching(n: &mut LookupNode, glyphs: &[Glyph], index: usize, stripped: bool) {
     // Iterate through all the glyph indices in this node.
-    for i in n.glyphs.iter() {
-        let glyph = &glyphs[*i];
+    for glyph in n.glyphs.iter() {
         let hist = if stripped {
             glyph.lstrip_hist()
         } else {
@@ -31,7 +30,7 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
 
         // Skip this glyph if its histogram is smaller than the current index being assigned.
         if hist.len() <= index {
-            n.leafs.push(*i);
+            n.leafs.push(glyph);
             continue;
         }
 
@@ -51,7 +50,7 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
         // Finally, assign this glyph index into this child.
         if let Some(child) = n.children[pos_in_children].as_mut() {
             child.index = index;
-            child.glyphs.push(*i);
+            child.glyphs.push(glyph);
         }
     }
 
@@ -65,13 +64,13 @@ fn recurse_glyph_matching(n: &mut Node, glyphs: &[Glyph], index: usize, stripped
     }
 }
 
-impl GlyphMatcher {
+impl<'a> LookupMatcher<'a> {
     /// Prepare the glyph matcher from a set of glyphs.
     /// If stripped is true, lstrip_hist is used.
     /// If minimal is true, the decision graph is cut short if only one glyph remains.
-    pub fn prepare(&mut self, glyphs: &[Glyph], stripped: bool) {
+    pub fn prepare(&mut self, glyphs: &'a [Glyph], stripped: bool) {
         // Assign the first node with all possible glyph indices.
-        self.tree.glyphs = (0..glyphs.len()).collect::<_>();
+        self.tree.glyphs = glyphs.iter().collect::<_>();
         // recurse from the first index and build out the tree.
         recurse_glyph_matching(&mut self.tree, &glyphs, 0, stripped);
     }
@@ -79,9 +78,9 @@ impl GlyphMatcher {
     /// Find a glyph matching the provided histogram. Returns None if no glyph exactly matches this
     /// histogram, if multiple glyphs would match perfectly it returns the one that occured earliest
     /// in the original slice used to setup the glyph matcher.
-    pub fn find_match(&self, histogram: &[crate::Bin]) -> Option<usize> {
-        let mut c: &Node = &self.tree;
-        let mut best: &Node = c;
+    pub fn find_match(&self, histogram: &[crate::Bin]) -> Option<&'a Glyph> {
+        let mut c: &LookupNode = &self.tree;
+        let mut best: &LookupNode = c;
 
         macro_rules! return_best {
             ( ) => {
@@ -102,7 +101,7 @@ impl GlyphMatcher {
                 // would be None.
                 // We may have multiple though, in that case the glyph set is ambiguous.
                 return match c.leafs.get(0) {
-                    Some(g) => Some(*g),
+                    Some(g) => Some(g),
                     _ => None,
                 };
             }
@@ -149,7 +148,7 @@ impl GlyphMatcher {
             "#,
         );
 
-        fn recurser(glyphs: &[Glyph], r: &mut String, n: &Node, index: usize) {
+        fn recurser(glyphs: &[Glyph], r: &mut String, n: &LookupNode, index: usize) {
             r.push_str(&format!(
                 r#"
                     "n{:p}" [
@@ -181,7 +180,6 @@ impl GlyphMatcher {
                 let glyph_string = n
                     .leafs
                     .iter()
-                    .map(|x| &glyphs[*x])
                     .map(|g| g.glyph().to_owned())
                     .collect::<Vec<String>>()
                     .join(", ")
@@ -220,45 +218,42 @@ impl GlyphMatcher {
     }
 }
 
+/// Matcher that returns the longest matching glyph.
 #[derive(Debug, Default, Clone)]
-pub struct LongestGlyphMatcher
-{
-    matcher: GlyphMatcher,
-    lstrip_matcher: GlyphMatcher,
+pub struct LongestGlyphMatcher<'a> {
+    matcher: LookupMatcher<'a>,
+    lstrip_matcher: LookupMatcher<'a>,
 }
 
-impl LongestGlyphMatcher
-{
-    pub fn new(glyphs: &[Glyph]) -> Self
-    {
+impl<'a> LongestGlyphMatcher<'a> {
+    /// Create a longest glyph matcher from the provided glyphs.
+    pub fn new(glyphs: &'a [Glyph]) -> Self {
         let mut v: LongestGlyphMatcher = Default::default();
         v.matcher.prepare(glyphs, false);
         v.lstrip_matcher.prepare(glyphs, true);
         v
     }
 
-    pub fn matcher(&self) -> &GlyphMatcher
-    {
+    /// Return the internal glyph matcher used.
+    pub fn matcher(&self) -> &LookupMatcher {
         &self.matcher
     }
-    pub fn lstrip_matcher(&self) -> &GlyphMatcher
-    {
+
+    /// Return the internal glyph matcher used for lstripped matching.
+    pub fn lstrip_matcher(&self) -> &LookupMatcher {
         &self.lstrip_matcher
     }
 }
 
-impl crate::Matcher for LongestGlyphMatcher
-{
-    fn find_match<'a>(&self, histogram: &[crate::Bin]) -> Option<usize>
-    {
+/// Implementation for the Matcher trait for the LongestGlyphMatcher.
+impl<'a> crate::Matcher<'a> for LongestGlyphMatcher<'a> {
+    fn find_match(&self, histogram: &[crate::Bin]) -> Option<&'a Glyph> {
         self.matcher.find_match(histogram)
     }
-    fn lstrip_find_match<'a>(&self, histogram: &[crate::Bin]) -> Option<usize>
-    {
+    fn lstrip_find_match(&self, histogram: &[crate::Bin]) -> Option<&'a Glyph> {
         self.lstrip_matcher.find_match(histogram)
     }
 }
-
 
 #[cfg(test)]
 mod matcher_tests {
@@ -283,16 +278,16 @@ mod matcher_tests {
         let a = Glyph::new(&[0, 0, 13, 0, 0], &"a");
         let b = Glyph::new(&[0, 0, 13, 0, 0, 0], &"b");
         let z = [a, b];
-        let mut matcher: GlyphMatcher = Default::default();
+        let mut matcher: LookupMatcher = Default::default();
         matcher.prepare(&z, false);
         // In this case, both a and b would match, but b is the longer match so should be taken.
         let res = matcher.find_match(&Bin::vec(&[0, 0, 13, 0, 0, 0, 1]));
         assert!(res.is_some());
-        assert_eq!(res.unwrap(), 1);
+        assert_eq!(res.unwrap(), &z[1]);
 
         // This will match a, but not b, we should get a, because it still matches perfectly.
         let res = matcher.find_match(&Bin::vec(&[0, 0, 13, 0, 0, 1]));
         assert!(res.is_some());
-        assert_eq!(res.unwrap(), 0);
+        assert_eq!(res.unwrap(), &z[0]);
     }
 }

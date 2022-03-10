@@ -166,7 +166,8 @@ fn main() {
     let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
     let now = Instant::now();
-    let matches = histogram_text_matcher::moving_windowed_histogram(&image, &glyph_set, &matcher, &labels);
+    let matches =
+        histogram_text_matcher::moving_windowed_histogram(&image, &glyph_set, &matcher, &labels);
     for m in matches.iter() {
         let location = &m.location;
         print!("{location:?} -> ");
