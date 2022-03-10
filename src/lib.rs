@@ -483,7 +483,7 @@ fn decide_on_matches<'a>(
 /// Function to slide a window over an image and match glyphs for each histogram thats created.
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
-    set: &'a glyphs::GlyphSet,
+    window_size: u32,
     matcher: &'a dyn Matcher,
     labels: &[ColorLabel],
 ) -> Vec<Match2D<'a>> {
@@ -496,7 +496,6 @@ pub fn moving_windowed_histogram<'a>(
 
     let mut histogram: Vec<Bin> = Vec::<Bin>::new();
     histogram.resize(image.width() as usize, Default::default());
-    let window_size = set.line_height as u32;
 
     // Start at the top, with zero width, then we sum rows for the window size
     // Then, we iterate down, at the bottom of the window add to the histogram
@@ -664,7 +663,7 @@ mod tests {
         let image = image_support::rgb_image_to_view(&image);
         let labels = vec![(RGB::white(), 0)];
 
-        let matches = moving_windowed_histogram(&image, &glyph_set, &matcher, &labels);
+        let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
         for m in matches.iter() {
             let location = &m.location;
             print!("{location:?} -> ");
@@ -717,7 +716,7 @@ mod tests {
         let image = image_support::rgb_image_to_view(&image);
         let labels = vec![(RGB::white(), 0), (RGB::red(), 1)];
 
-        let matches = moving_windowed_histogram(&image, &glyph_set, &matcher, &labels);
+        let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
         for m in matches.iter() {
             let location = &m.location;
             print!("{location:?} -> ");

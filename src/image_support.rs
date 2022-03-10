@@ -264,7 +264,7 @@ pub fn dev_image_to_glyph_set(
             b.width(),
             b.height(),
         );
-        result.line_height = std::cmp::max(result.line_height, b.height() as u8);
+        result.line_height = std::cmp::max(result.line_height, b.height());
         let sub_img = sub_img.to_image();
         let tokens = token_splitter(&sub_img);
 

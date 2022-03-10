@@ -91,7 +91,7 @@ pub struct GlyphSet {
     /// Line height used for all glyphs in this set.
     /// This is just the distance in which all characters would fit, so the bottom of the p to the
     /// top of the d.
-    pub line_height: u8,
+    pub line_height: u32,
 
     /// Name associated to this glyph set, not required, but useful in debugging.
     pub name: String,
