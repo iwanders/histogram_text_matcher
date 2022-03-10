@@ -108,12 +108,14 @@ pub fn histogram_glyph_matcher(
     res
 }
 
+/// Representation of a histogram bin and associated label color.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Bin {
     pub count: u32,
     pub label: u32,
 }
 impl Bin {
+    /// Helper function to create a vector of bins from a slice of counts.
     pub fn vec(v: &[u32]) -> Vec<Bin> {
         v.iter()
             .map(|x| Bin {
@@ -124,14 +126,23 @@ impl Bin {
     }
 }
 
+/// Relate a particular color to a label.
 type ColorLabel = (RGB, u32);
 
+/// A glyph with an associated label.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LabelledGlyph<'a> {
     pub glyph: &'a glyphs::Glyph,
     pub label: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Match2D<'a> {
+    pub tokens: Vec<LabelledGlyph<'a>>,
+    pub location: Rect,
+}
+
+/// A token in the histogram matching, denoting whitespace and glyphs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Token<'a> {
     WhiteSpace(usize), // Value denotes amount of whitespace pixels.
@@ -140,18 +151,42 @@ enum Token<'a> {
         label: u32,
     },
 }
-
+/// A match in the histogram at a certain position.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Match<'a> {
+    /// The matched token.
     pub token: Token<'a>,
+    /// Position in the histogram
     pub position: u32,
+    /// Width of this token.
     pub width: u32,
 }
 
+/// Trait that provides glyph matching functionality.
 pub trait Matcher<'a> {
     fn find_match(&self, histogram: &[Bin]) -> Option<&'a glyphs::Glyph>;
     fn lstrip_find_match(&self, histogram: &[Bin]) -> Option<&'a glyphs::Glyph>;
 }
+
+// There are situation where linear - longest glyph matching is not correct;
+// glyph a: [0, 2, 3, 3]
+// glyph b: [0, 2, 3]
+// glyph c: [3, 4, 5, 6]
+// And hist:[0, 2, 3, 3, 4, 5, 6]
+//          [0, 2, 3, 3] <- Glyph a is the best matching glyph and longest match.
+//                      [4, 5, 6] This is the remainder of the histogram, which can't be matched.
+// Better:
+//          [0, 2, 3] <- Match glyph A
+//                   [3, 4, 5, 6] <- Match glyph C.
+//
+// This requires the glyph matcher to return a list of all possible glyphs for for the given
+// histogram. Then we can perform a search over the possible interpretations in the histogram.
+//
+// This would also allow for accounting for situations where multiple glyphs map to identical
+// histograms and we need context to decide which one would be best.
+//
+// Also allows for accounting for a whitespace character that is equal to empty histograms while
+// ensuring that can't occur twice at the end of a word.
 
 fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
@@ -324,12 +359,6 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Match2D<'a> {
-    pub tokens: Vec<LabelledGlyph<'a>>,
-    pub location: Rect,
-}
-
 use std::collections::VecDeque;
 
 // Helper to add a row
@@ -353,7 +382,7 @@ fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>)
     }
 }
 
-// Helper to accept or discard matches to consider
+// Helper to accept or discard matches based on whether they have moved out of the window.
 fn finalize_considerations<'a>(
     y: u32,
     res_consider: &mut VecDeque<Match2D<'a>>,
@@ -364,7 +393,7 @@ fn finalize_considerations<'a>(
     }
 }
 
-// Helper to decide on matches.
+// Helper to decide on matches that overlap with other matches.
 fn decide_on_matches<'a>(
     y: u32,
     window_size: u32,
