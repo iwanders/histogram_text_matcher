@@ -10,6 +10,8 @@ pub use interface::*;
 
 pub mod matcher;
 
+pub mod util;
+
 /// Type to hold a simple 1D histogram.
 pub type SimpleHistogram = Vec<u8>;
 
@@ -330,6 +332,13 @@ impl Rect {
             && self.top() >= b.bottom()
             && b.top() >= self.bottom()
     }
+    /// Return whether this rectangle overlaps with the provided rectangle. Excluding boundary.
+    pub fn overlaps_excluding(&self, b: &Rect) -> bool {
+        self.right() > b.left()
+            && b.right() > self.left()
+            && self.top() > b.bottom()
+            && b.top() > self.bottom()
+    }
 
     pub fn contains(&self, x: u32, y: u32) -> bool {
         x >= self.left() && x <= self.right() && y >= self.bottom() && y <= self.top()
@@ -472,7 +481,7 @@ fn decide_on_matches<'a>(
                     }
 
                     // Check if this block overlaps the match were checking against.
-                    if m.location.overlaps(&this_block_region) {
+                    if m.location.overlaps_excluding(&this_block_region) {
                         // We overlap, and the current glyph sequence is still under consideration;
                         // Decide if better, more matching pixels is better, likely a longer
                         // word, or more complex glyph got matched.
@@ -658,6 +667,7 @@ mod tests {
     fn test_bin_glyph_matcher_no_white_space_moving_multiple() {
         println!();
         use image::RgbImage;
+        use std::path::PathBuf;
 
         // Create the glyph set.
         let (glyph_image, glyph_text) = standard_alphabet();
@@ -685,7 +695,7 @@ mod tests {
             (50, 13, "deeb", white.to_rgb()),
             (100u32, 10u32, "waab", blue.to_rgb()),
             (150, 13, "wacb", white.to_rgb()),
-            // (50, 20, "dwaaaaaa", red.to_rgb()), // Touches the other DEEB.
+            (50, 20, "dwaaaaaa", red.to_rgb()), // Touches the other DEEB.
             (10u32, 50u32, "cba", blue.to_rgb()),
         ];
 
@@ -699,6 +709,7 @@ mod tests {
         let labels = vec![(white, 0), (red, 1), (blue, 2)];
 
         let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
+        util::write_match_html(image.width(), image.height(), &matches, &PathBuf::from("/tmp/moving_multiple.png"), &PathBuf::from("/tmp/moving_multiple.html")).expect("");
 
         for m in matches.iter() {
             let location = &m.location;
@@ -726,7 +737,7 @@ mod tests {
             let index = matches
                 .iter()
                 .position(|m| m.location.contains(x + 3, y + 3))
-                .unwrap();
+                .expect("could not find match for this text");
             // Now, we found the index, check if this match matches the original input.
             let m = &matches[index];
             let z = m
