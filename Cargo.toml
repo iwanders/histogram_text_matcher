@@ -2,6 +2,8 @@
 name = "histogram_text_matcher"
 version = "0.0.0"
 edition = "2021"
+authors = ["Ivor Wanders <ivor@iwanders.net>"]
+license = "MIT OR Apache-2.0"
 
 [profile.dev]
 opt-level=3
