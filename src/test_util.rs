@@ -13,28 +13,6 @@ pub fn apply_stamp(image: &mut RgbImage, x: u32, y: u32, stamp: &RgbaImage) {
     }
 }
 
-/// Scale an image with an integer factor.
-pub fn scale_image<I>(image: &I, scaling: u32) -> imageproc::definitions::Image<I::Pixel>
-where
-    I: image::GenericImage,
-    I::Pixel: 'static,
-{
-    use imageproc::rect::Rect;
-    let mut new_image = image::ImageBuffer::new(image.width() * scaling, image.height() * scaling);
-    for y in 0..image.height() {
-        for x in 0..image.width() {
-            let nx = x * scaling;
-            let ny = y * scaling;
-            imageproc::drawing::draw_filled_rect_mut(
-                &mut new_image,
-                Rect::at(nx as i32, ny as i32).of_size(scaling, scaling),
-                image.get_pixel(x, y),
-            );
-        }
-    }
-    new_image
-}
-
 pub mod test_alphabet {
     use super::*;
 
@@ -181,8 +159,8 @@ pub mod test_alphabet {
     const TEXT_STANDARD_ALPHABET: &'static str = "abcdew";
     pub fn render_standard_alphabet() -> RgbImage {
         let mut image = RgbImage::new(512, 512);
-        let width = render_standard(&mut image, 0, 1, &TEXT_STANDARD_ALPHABET);
-        let mut image = RgbImage::new(width, LETTER_HEIGHT + 2);
+        let width = render_standard(&mut image, 0, 0, &TEXT_STANDARD_ALPHABET);
+        let mut image = RgbImage::new(width, LETTER_HEIGHT);
         render_standard(&mut image, 0, 0, &TEXT_STANDARD_ALPHABET);
         image
     }
@@ -207,7 +185,7 @@ mod tests {
         let stamp_e = test_alphabet::white_e();
         let stamp_w = test_alphabet::white_w();
 
-        let scaled_a = scale_image(&stamp_a, 2);
+        let scaled_a = crate::image_support::scale_image(&stamp_a, 2);
 
         apply_stamp(&mut image, 0, 0, &stamp_a);
         apply_stamp(&mut image, 1, 20, &scaled_a);

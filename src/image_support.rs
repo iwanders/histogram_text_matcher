@@ -177,6 +177,27 @@ pub fn draw_histogram_mut_xy_a(
     }
 }
 
+/// Scale an image with an integer factor.
+pub fn scale_image<I>(image: &I, scaling: u32) -> imageproc::definitions::Image<I::Pixel>
+where
+    I: image::GenericImage,
+    I::Pixel: 'static,
+{
+    let mut new_image = image::ImageBuffer::new(image.width() * scaling, image.height() * scaling);
+    for y in 0..image.height() {
+        for x in 0..image.width() {
+            let nx = x * scaling;
+            let ny = y * scaling;
+            imageproc::drawing::draw_filled_rect_mut(
+                &mut new_image,
+                Rect::at(nx as i32, ny as i32).of_size(scaling, scaling),
+                image.get_pixel(x, y),
+            );
+        }
+    }
+    new_image
+}
+
 fn optionally_save_image(image: &RgbImage, out_dir: &Option<&str>, name: &str) {
     if let Some(path) = out_dir {
         image

@@ -820,4 +820,62 @@ mod tests {
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
     }
+
+    #[test]
+    fn render_readme_images() {
+        use image::{Rgb, RgbImage};
+
+        let glyph_text = "abc";
+        let mut image = RgbImage::new(30, 30);
+        crate::test_util::test_alphabet::render_standard(&mut image, 0, 2, &glyph_text);
+
+        let mut image_mut = image.clone();
+
+        let _ = crate::image_support::scale_image(&image, 5)
+            .save("/tmp/readme_glyphs.png")
+            .unwrap();
+
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&image, Some(0), &None);
+
+        glyph_set.entries[0] = glyphs::Glyph::new(glyph_set.entries[0].hist(), &"a");
+        glyph_set.entries[1] = glyphs::Glyph::new(glyph_set.entries[1].hist(), &"b");
+        glyph_set.entries[2] = glyphs::Glyph::new(glyph_set.entries[2].hist(), &"c");
+        glyph_set.prepare();
+        for g in glyph_set.entries.iter() {
+            println!("{g:?}");
+        }
+
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
+        let image = image_support::rgb_image_to_view(&image);
+        let labels = vec![(RGB::white(), 0)];
+
+        let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
+
+        let bottom = 25;
+        for (i, v) in matches.iter().enumerate() {
+            println!("{i}: {v:?}");
+            let mut left_offset = 0;
+            for t in v.tokens.iter() {
+                let glyph = t.glyph;
+                let hist = glyph.hist();
+                for x in 0..hist.len() {
+                    let img_x = left_offset + v.location.left() + x as u32;
+                    for y in 0..hist[x] {
+                        let c = Rgb([255u8, 0, 0]);
+                        *(image_mut.get_pixel_mut(img_x, bottom + 1 - (y as u32))) = c;
+                    }
+                }
+                left_offset += hist.len() as u32 + 1; // bit of a hack this + 1
+            }
+        }
+        let _ = crate::image_support::scale_image(&image_mut, 5)
+            .save("/tmp/readme_glyphs_hist.png")
+            .unwrap();
+
+        use std::fs::File;
+        use std::io::Write;
+        let mut file = File::create("/tmp/readme_glyphs.dot").unwrap();
+        file.write(&matcher.matcher().to_dot(&glyph_set.entries).as_bytes())
+            .unwrap();
+    }
 }

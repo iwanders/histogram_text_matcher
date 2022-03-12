@@ -129,3 +129,33 @@ pub fn write_match_html<'a>(
     file.write(&c.as_bytes())?;
     Ok(())
 }
+
+pub fn image_as_svg(image: &dyn crate::interface::Image, width: u32, height: u32) -> String {
+    let mut c: String = String::new();
+    let image_width = image.width();
+    let image_height = image.height();
+    c.push_str(&format!(
+        r#"<svg id="svg_el" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        width="{width}" height="{height}" viewBox="0 0 {image_width} {image_height}" version="1.1">
+        "#,
+    ));
+    for y in 0..image.height() {
+        for x in 0..image.width() {
+            let color = image.pixel(x, y);
+            c.push_str(&format!(
+                r#"<rect style="fill:rgb({r},{g},{b});" shape-rendering="crispEdges"
+                    width="1"
+                    height="1"
+                    x="{x}"
+                    y="{y}"
+                />
+                "#,
+                r = color.r,
+                g = color.g,
+                b = color.b
+            ));
+        }
+    }
+    c.push_str("\n</svg>");
+    c
+}
