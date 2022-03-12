@@ -823,37 +823,77 @@ mod tests {
 
     #[test]
     fn render_readme_images() {
+        // This entire function is a bit ugly... we write some images to disk that we then
+        // read back etc...
+        use image::open;
         use image::{Rgb, RgbImage};
+        use std::path::Path;
 
-        let glyph_text = "abc";
-        let mut image = RgbImage::new(30, 30);
-        crate::test_util::test_alphabet::render_standard(&mut image, 0, 2, &glyph_text);
-
-        let mut image_mut = image.clone();
-
-        let _ = crate::image_support::scale_image(&image, 5)
-            .save("/tmp/readme_glyphs.png")
-            .unwrap();
-
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&image, Some(0), &None);
-
-        glyph_set.entries[0] = glyphs::Glyph::new(glyph_set.entries[0].hist(), &"a");
-        glyph_set.entries[1] = glyphs::Glyph::new(glyph_set.entries[1].hist(), &"b");
-        glyph_set.entries[2] = glyphs::Glyph::new(glyph_set.entries[2].hist(), &"c");
-        glyph_set.prepare();
-        for g in glyph_set.entries.iter() {
-            println!("{g:?}");
+        let location = String::from("/tmp/readme_image_dir/");
+        let have_dir = Path::new(&location).is_dir();
+        if !have_dir {
+            return;
         }
 
+        let glyph_text = "abc";
+        let mut original_image = RgbImage::new(28, 28);
+        crate::test_util::test_alphabet::render_standard(&mut original_image, 0, 10, &glyph_text);
+
+        let scale_factor = 5u32;
+        let final_zoom = 1u32;
+
+        let output_dir = if have_dir {
+            Some(location.as_str())
+        } else {
+            None
+        };
+
+        let readme_glyph_image = location.clone() + "readme_glyphs.png";
+        let scaled_readme_glyphs = crate::image_support::scale_image(&original_image, scale_factor);
+        let _ = scaled_readme_glyphs.save(&readme_glyph_image).unwrap();
+
+        let image = open(&readme_glyph_image)
+            .expect(&format!("could not load image at {:?}", readme_glyph_image))
+            .to_rgb8();
+
+        // Print the real histograms
+        {
+            let mut glyph_set =
+                image_support::dev_image_to_glyph_set(&original_image, Some(0), &None);
+            glyph_set.entries[0] = glyphs::Glyph::new(glyph_set.entries[0].hist(), &"a");
+            glyph_set.entries[1] = glyphs::Glyph::new(glyph_set.entries[1].hist(), &"b");
+            glyph_set.entries[2] = glyphs::Glyph::new(glyph_set.entries[2].hist(), &"c");
+            glyph_set.prepare();
+            for g in glyph_set.entries.iter() {
+                println!("{g:?}");
+            }
+
+            let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
+            use std::fs::File;
+            use std::io::Write;
+            let mut file = File::create(location.to_owned() + "readme_glyphs.dot").unwrap();
+            file.write(&matcher.matcher().to_dot(&glyph_set.entries).as_bytes())
+                .unwrap();
+        }
+
+        // Calculate the glyph set for the scaled image to output the segmentation.
+        let glyph_set = image_support::dev_image_to_glyph_set(&image, Some(0), &output_dir);
+
+        let glyph_set_output = location.clone() + "dev_histogram_boxes.png";
+        let image = open(&glyph_set_output)
+            .expect(&format!("could not load image at {:?}", &glyph_set_output))
+            .to_rgb8();
+        let mut image_mut = image.clone();
+
         let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
-        let image = image_support::rgb_image_to_view(&image);
+        let image = image_support::rgb_image_to_view(&scaled_readme_glyphs);
         let labels = vec![(RGB::white(), 0)];
 
         let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
 
-        let bottom = 25;
-        for (i, v) in matches.iter().enumerate() {
-            println!("{i}: {v:?}");
+        // We should draw a grid here.
+        let bottom = 26 * scale_factor;
+        for v in matches.iter() {
             let mut left_offset = 0;
             for t in v.tokens.iter() {
                 let glyph = t.glyph;
@@ -868,14 +908,20 @@ mod tests {
                 left_offset += hist.len() as u32 + 1; // bit of a hack this + 1
             }
         }
-        let _ = crate::image_support::scale_image(&image_mut, 5)
-            .save("/tmp/readme_glyphs_hist.png")
-            .unwrap();
 
-        use std::fs::File;
-        use std::io::Write;
-        let mut file = File::create("/tmp/readme_glyphs.dot").unwrap();
-        file.write(&matcher.matcher().to_dot(&glyph_set.entries).as_bytes())
+        // Finally, copy the white letters that were the original input to the top of the image
+        // crate::test_util::test_alphabet::render_standard(&mut original_image, 0, 10, &glyph_text);
+        let original_start = 10u32;
+        let original_end = 18u32;
+        let offset = (original_start - 1) * scale_factor;
+        for y in (original_start * scale_factor)..(original_end * scale_factor) {
+            for x in 0..scaled_readme_glyphs.width() {
+                *image_mut.get_pixel_mut(x, y - offset) = *scaled_readme_glyphs.get_pixel(x, y);
+            }
+        }
+
+        let _ = crate::image_support::scale_image(&image_mut, final_zoom)
+            .save(location.to_owned() + "readme_glyphs_hist.png")
             .unwrap();
     }
 }
