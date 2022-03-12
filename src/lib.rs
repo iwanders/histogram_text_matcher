@@ -784,6 +784,7 @@ mod tests {
         glyph_set.entries.push(glyphs::Glyph::new(&s4, &"s4"));
         glyph_set.entries.push(glyphs::Glyph::new(&s5, &"s5"));
         glyph_set.entries.push(glyphs::Glyph::new(&s6, &"s6"));
+        glyph_set.line_height = 1;
         glyph_set.prepare();
         let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
         println!("Glyph set: {glyph_set:?}");
