@@ -9,7 +9,7 @@ use serde_yaml;
 type HistogramValue = u8;
 
 /// Representation for a single glyph.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Glyph {
     /// Histogram used to identify this glyph.
     hist: Vec<HistogramValue>,

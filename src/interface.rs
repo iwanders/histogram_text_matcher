@@ -9,6 +9,16 @@ pub struct RGB {
     pub b: u8,
 }
 
+#[cfg(test)]
+use image::Rgb;
+#[cfg(test)]
+impl PartialEq<&RGB> for &Rgb<u8> {
+    fn eq(&self, other: &&RGB) -> bool {
+        use image::Pixel;
+        self.channels() == &[other.r, other.g, other.b]
+    }
+}
+
 impl RGB {
     pub fn rgb(r: u8, g: u8, b: u8) -> Self {
         RGB { r, g, b }
@@ -32,6 +42,11 @@ impl RGB {
     }
     pub fn blue() -> Self {
         RGB { r: 0, g: 0, b: 255 }
+    }
+
+    #[cfg(test)]
+    pub fn to_rgb(&self) -> Rgb<u8> {
+        Rgb([self.r, self.g, self.b])
     }
 }
 

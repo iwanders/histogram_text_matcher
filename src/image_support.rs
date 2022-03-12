@@ -75,6 +75,11 @@ pub fn line_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
             start = None;
         }
     }
+    // finalize if we still have to conclude this row.
+    if start.is_some() {
+        let begin_pos = start.unwrap();
+        res.push(Rect::at(0, begin_pos as i32).of_size(image.width(), image.height() - begin_pos));
+    }
     res
 }
 
@@ -101,6 +106,11 @@ pub fn token_splitter(image: &RgbImage) -> Vec<imageproc::rect::Rect> {
             res.push(Rect::at(begin_pos as i32, 0).of_size(c - begin_pos, image.height()));
             start = None;
         }
+    }
+    // finalize if we still have to conclude this character.
+    if start.is_some() {
+        let begin_pos = start.unwrap();
+        res.push(Rect::at(begin_pos as i32, 0).of_size(width - begin_pos, image.height()));
     }
     res
 }
@@ -159,10 +169,10 @@ pub fn draw_histogram_mut_xy_a(
     for x in 0..hist.len() {
         let img_x = left + x as u32;
         for y in 0..hist[x] {
-            let orig = image.get_pixel(img_x, bottom - (y as u32));
+            let orig = image.get_pixel(img_x, bottom + 1 - (y as u32));
             let c = color;
             let res = imageproc::pixelops::interpolate(c, *orig, alpha);
-            *(image.get_pixel_mut(img_x, bottom - (y as u32))) = res;
+            *(image.get_pixel_mut(img_x, bottom + 1 - (y as u32))) = res;
         }
     }
 }

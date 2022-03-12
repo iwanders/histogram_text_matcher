@@ -21,6 +21,9 @@ pub mod image_support;
 #[cfg(test)]
 pub mod image_support;
 
+#[cfg(test)]
+pub mod test_util;
+
 /*
     Improvements:
         - Currently, a space character would be greedy and match until end of line.
@@ -130,20 +133,20 @@ impl Bin {
 type ColorLabel = (RGB, u32);
 
 /// A glyph with an associated label.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct LabelledGlyph<'a> {
     pub glyph: &'a glyphs::Glyph,
     pub label: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash)]
 pub struct Match2D<'a> {
     pub tokens: Vec<LabelledGlyph<'a>>,
     pub location: Rect,
 }
 
 /// A token in the histogram matching, denoting whitespace and glyphs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Token<'a> {
     WhiteSpace(usize), // Value denotes amount of whitespace pixels.
     Glyph {
@@ -152,7 +155,7 @@ enum Token<'a> {
     },
 }
 /// A match in the histogram at a certain position.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Match<'a> {
     /// The matched token.
     pub token: Token<'a>,
@@ -311,7 +314,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
 }
 
 /// Struct to represent a rectangle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash)]
 pub struct Rect {
     pub x: u32,
     pub y: u32,
@@ -326,6 +329,10 @@ impl Rect {
             && b.right() >= self.left()
             && self.top() >= b.bottom()
             && b.top() >= self.bottom()
+    }
+
+    pub fn contains(&self, x: u32, y: u32) -> bool {
+        x >= self.left() && x <= self.right() && y >= self.bottom() && y <= self.top()
     }
 
     /// The highest y value of the rectangle (bottom in image coordinates!)
@@ -592,6 +599,9 @@ pub fn moving_windowed_histogram<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_util::test_alphabet::{
+        render_standard_alphabet, render_standard_color, standard_alphabet,
+    };
 
     fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin> {
         hist.iter()
@@ -604,8 +614,7 @@ mod tests {
 
     #[test]
     fn test_histogram_glyph_matcher() {
-        assert!(true);
-        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let rgb_image = render_standard_alphabet();
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
@@ -613,9 +622,9 @@ mod tests {
 
         println!("Histogram: {hist:?}");
 
-        let res = histogram_glyph_matcher(&hist, &glyph_set, 10);
+        let res = histogram_glyph_matcher(&hist, &glyph_set, 5);
 
-        assert!(res.len() == 4);
+        assert!(res.len() == 6);
         for (g, score) in res.iter() {
             println!("{g:?}: {score}");
             assert!(*score == 0);
@@ -624,8 +633,7 @@ mod tests {
 
     #[test]
     fn test_bin_glyph_matcher() {
-        assert!(true);
-        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
+        let rgb_image = render_standard_alphabet();
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
         let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
@@ -635,40 +643,6 @@ mod tests {
         let binned = simple_histogram_to_bin_histogram(&hist);
 
         let matches = bin_glyph_matcher(&binned, &matcher);
-        // println!("Histogram: {matches:?}");
-
-        for (i, v) in matches.iter().enumerate() {
-            println!("{i}: {v:?}");
-        }
-    }
-
-    #[test]
-    fn test_bin_glyph_matcher_no_white_space() {
-        println!();
-
-        use std::path::Path;
-
-        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
-        glyph_set.prepare();
-        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
-
-        let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
-        let _ = image
-            .save(Path::new("dev_glyph_matcher_no_white_space.png"))
-            .unwrap();
-
-        let _ = image_support::filter_white(&image)
-            .save(Path::new("dev_glyph_matcher_no_white_space_white.png"))
-            .unwrap();
-
-        let image = image_support::rgb_image_to_view(&image);
-        let hist = image_to_simple_histogram(&image, RGB::white());
-        println!("hist: {hist:?}");
-        let binned = simple_histogram_to_bin_histogram(&hist);
-
-        let matches = bin_glyph_matcher(&binned, &matcher);
-        // println!("Histogram: {matches:?}");
 
         let mut glyph_counter = 0;
         for (i, v) in matches.iter().enumerate() {
@@ -679,73 +653,53 @@ mod tests {
             }
         }
     }
-    #[test]
-    fn test_bin_glyph_matcher_no_white_space_moving() {
-        println!();
-        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
-        glyph_set.prepare();
-        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
-        println!("glyph_set: {glyph_set:?}");
 
-        let image = image_support::dev_create_example_glyphs_packed().expect("Must have image");
-        let image = image_support::rgb_image_to_view(&image);
-        let labels = vec![(RGB::white(), 0)];
-
-        let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
-        for m in matches.iter() {
-            let location = &m.location;
-            print!("{location:?} -> ");
-            for t in m.tokens.iter() {
-                let g = t.glyph.glyph();
-                print!(" {g:?}");
-            }
-            println!();
-        }
-    }
     #[test]
     fn test_bin_glyph_matcher_no_white_space_moving_multiple() {
         println!();
+        use image::RgbImage;
 
-        let rgb_image = image_support::dev_create_example_glyphs().expect("Succeeds");
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &None);
+        // Create the glyph set.
+        let (glyph_image, glyph_text) = standard_alphabet();
+        let image = image_support::rgb_image_to_view(&glyph_image);
+        let mut glyph_set = image_support::dev_image_to_glyph_set(&glyph_image, Some(0), &None);
+        // Patch up the glyph set's glyphs.
+        for (i, c) in glyph_text.chars().enumerate() {
+            let old_glyph = &glyph_set.entries[i];
+            glyph_set.entries[i] = glyphs::Glyph::new(old_glyph.hist(), &String::from(c));
+        }
         glyph_set.prepare();
+
         let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
-        use image::Rgb;
-        use rusttype::Font;
-        use std::path::Path;
+        // Create an image with some text in it at various places, different colors and various
+        // offset line alignments.
+        let mut image = RgbImage::new(200, 100);
 
-        let font_size = 40.0;
-        let font = std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf").unwrap();
-        let font = Font::try_from_vec(font).unwrap();
+        let white = RGB::white();
+        let red = RGB::red();
+        let blue = RGB::blue();
 
-        let size = (500, 500);
+        let locations = [
+            (10u32, 10u32, "caab", red.to_rgb()),
+            (50, 13, "deeb", white.to_rgb()),
+            (100u32, 10u32, "waab", blue.to_rgb()),
+            (150, 13, "wacb", white.to_rgb()),
+            // (50, 20, "dwaaaaaa", red.to_rgb()), // Touches the other DEEB.
+            (10u32, 50u32, "cba", blue.to_rgb()),
+        ];
 
-        let mut drawables =
-            image_support::dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
-        drawables.extend(image_support::dev_example_glyphs_packed(
-            100,
-            15,
-            &Rgb([255u8, 0u8, 0u8]),
-        ));
+        for (x, y, text, color) in locations.iter() {
+            render_standard_color(&mut image, *x, *y, text, *color);
+        }
 
-        let image = image_support::render_font_image(size, &font, font_size, &drawables);
-        let _ = image
-            .save(Path::new(
-                "dev_glyph_matcher_no_white_space_moving_multiple.png",
-            ))
-            .unwrap();
-        let _ = image_support::filter_primary(&image)
-            .save(Path::new(
-                "dev_glyph_matcher_no_white_space_moving_multiple_primary.png",
-            ))
-            .unwrap();
+        let _ = image.save("/tmp/moving_multiple.png").unwrap();
 
         let image = image_support::rgb_image_to_view(&image);
-        let labels = vec![(RGB::white(), 0), (RGB::red(), 1)];
+        let labels = vec![(white, 0), (red, 1), (blue, 2)];
 
         let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
+
         for m in matches.iter() {
             let location = &m.location;
             print!("{location:?} -> ");
@@ -754,8 +708,46 @@ mod tests {
                 let g = t.glyph.glyph();
                 print!(" {g:?}#{l}");
             }
+            let z = m
+                .tokens
+                .iter()
+                .map(|t| t.glyph.glyph().to_owned())
+                .collect::<Vec<String>>()
+                .join("");
+            print!(" -> {z}");
             println!();
         }
+
+        // Finally test them.
+        let mut matches = matches;
+        for (x, y, text, color) in locations.iter() {
+            // We know the position, there must be a single element in the match_set for this
+            // position.
+            let index = matches
+                .iter()
+                .position(|m| m.location.contains(x + 3, y + 3))
+                .unwrap();
+            // Now, we found the index, check if this match matches the original input.
+            let m = &matches[index];
+            let z = m
+                .tokens
+                .iter()
+                .map(|t| t.glyph.glyph().to_owned())
+                .collect::<Vec<String>>()
+                .join("");
+            assert_eq!(z, *text);
+
+            for t in m.tokens.iter() {
+                for (label_color, label) in labels.iter() {
+                    if *label == t.label {
+                        assert_eq!(color, label_color);
+                    }
+                }
+            }
+
+            matches.remove(index);
+        }
+        assert_eq!(matches.len(), 0);
     }
 
     #[test]
