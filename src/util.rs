@@ -106,7 +106,7 @@ pub fn write_match_html<'a>(
         r#"<svg id="svg_el" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
         width="{width}" height="{height}" viewBox="0 0 {width} {height}" version="1.1">
         <image xlink:href="{file}" width="{width}" height="{height}"
-        preserveAspectRatio="none" x="0" y="0" />"#,
+        preserveAspectRatio="none" x="0" y="0" style="image-rendering: pixelated" />"#,
         file = image_path.to_string_lossy()
     ));
 
