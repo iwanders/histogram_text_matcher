@@ -177,59 +177,6 @@ pub fn draw_histogram_mut_xy_a(
     }
 }
 
-/// Something that creates a dummy glyph image.
-pub fn dev_create_example_glyphs() -> Result<RgbImage, Box<dyn std::error::Error>> {
-    let font_size = 40.0;
-    let symbols = vec!['a', 'b', 'e', 'z'];
-
-    let mut drawables = vec![];
-    for (i, z) in symbols.iter().enumerate() {
-        drawables.push((
-            (((i as f32 + 0.5) * font_size) as u32, font_size as u32),
-            String::from(*z),
-            Rgb([255u8, 255u8, 255u8]),
-        ));
-    }
-
-    let font = std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
-    let font = Font::try_from_vec(font).unwrap();
-
-    let size = (
-        (font_size * (symbols.len() + 1) as f32) as u32,
-        (font_size * 2.0) as u32,
-    );
-
-    Ok(render_font_image(size, &font, font_size, &drawables))
-}
-
-pub fn dev_example_glyphs_packed(
-    x: u32,
-    y: u32,
-    color: &Rgb<u8>,
-) -> Vec<((u32, u32), String, Rgb<u8>)> {
-    let mut drawables: Vec<((u32, u32), String, Rgb<u8>)> = Vec::new();
-    drawables.push(((20 + x, 20 + y), String::from("a"), *color));
-    drawables.push(((35 + x, 20 + y), String::from("b"), *color));
-    drawables.push(((54 + x, 20 + y), String::from("e"), *color));
-    drawables.push(((73 + x, 20 + y), String::from("z"), *color));
-    drawables
-}
-
-pub fn dev_create_example_glyphs_packed() -> Result<RgbImage, Box<dyn std::error::Error>> {
-    // Create an image without spaces.
-    let font_size = 40.0;
-
-    let font = std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
-    let font = Font::try_from_vec(font).unwrap();
-
-    let size = (
-        (font_size * (4 + 1) as f32) as u32,
-        (font_size * 2.0) as u32,
-    );
-    let drawables = dev_example_glyphs_packed(0, 0, &Rgb([255u8, 255u8, 255u8]));
-    Ok(render_font_image(size, &font, font_size, &drawables))
-}
-
 fn optionally_save_image(image: &RgbImage, out_dir: &Option<&str>, name: &str) {
     if let Some(path) = out_dir {
         image
@@ -306,7 +253,6 @@ pub fn dev_image_to_glyph_set(
                 Rgb([255u8, 0u8, 0u8]),
                 0.5,
             );
-
             let _global_rect =
                 Rect::at(b.left() + z.left(), b.top() + z.top()).of_size(z.width(), z.height());
 
@@ -326,28 +272,41 @@ pub fn rgb_image_to_view(image: &RgbImage) -> crate::ImageBufferView<[u8], 3> {
     crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw())
 }
 
-pub fn dev_histogram_on_image() -> Result<(), Box<dyn std::error::Error>> {
-    let image = dev_create_example_glyphs()?;
-    let z = crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
-    let x = crate::ImageBufferView::<[u8], 3>::from_raw_ref(
-        image.width(),
-        image.height(),
-        &image.as_raw(),
-    ); // reference
-    let y = crate::ImageBufferView::<Vec<u8>, 3>::from_raw_ref(
-        image.width(),
-        image.height(),
-        &image.as_raw(),
-    ); // copy
-    use crate::Image;
-    let p = z.pixel(27, 45);
-    let px = x.pixel(27, 45);
-    let py = y.pixel(27, 45);
-    println!("{p:?}");
-    println!("{px:?}");
-    println!("{py:?}");
-    // x + 3
-    // z + 3
-    // y + 3
-    Ok(())
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_image_buffer_view() -> Result<(), Box<dyn std::error::Error>> {
+        let image = imageproc::utils::rgb_bench_image(512, 512);
+        let z = crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
+        let img_ref = crate::ImageBufferView::<[u8], 3>::from_raw_ref(
+            image.width(),
+            image.height(),
+            &image.as_raw(),
+        ); // reference
+        let img_copy = crate::ImageBufferView::<Vec<u8>, 3>::from_raw_ref(
+            image.width(),
+            image.height(),
+            &image.as_raw(),
+        ); // copy
+        use crate::Image;
+        for y in 0..image.height() {
+            for x in 0..image.width() {
+                let p = z.pixel(x, y);
+                let px = img_ref.pixel(x, y);
+                let py = img_copy.pixel(x, y);
+                assert_eq!(p, px);
+                assert_eq!(p, py);
+            }
+        }
+        let p = z.pixel(23, 55);
+        let px = img_ref.pixel(23, 55);
+        let py = img_copy.pixel(23, 55);
+        println!("{p:?}");
+        println!("{px:?}");
+        println!("{py:?}");
+        // x + 3
+        // z + 3
+        // y + 3
+        Ok(())
+    }
 }

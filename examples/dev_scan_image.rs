@@ -2,7 +2,6 @@ use image::open;
 use std::path::PathBuf;
 use std::time::Instant;
 
-
 fn main() {
     if std::env::args().len() <= 1 {
         println!("expected: ./binary glyph_set_file input_image_file");

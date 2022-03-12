@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use crate::Match2D;
+use std::path::PathBuf;
 
 /// Function to render an html page for inspecting matches.
 pub fn write_match_html<'a>(

@@ -671,7 +671,6 @@ mod tests {
 
         // Create the glyph set.
         let (glyph_image, glyph_text) = standard_alphabet();
-        let image = image_support::rgb_image_to_view(&glyph_image);
         let mut glyph_set = image_support::dev_image_to_glyph_set(&glyph_image, Some(0), &None);
         // Patch up the glyph set's glyphs.
         for (i, c) in glyph_text.chars().enumerate() {
@@ -709,7 +708,14 @@ mod tests {
         let labels = vec![(white, 0), (red, 1), (blue, 2)];
 
         let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
-        util::write_match_html(image.width(), image.height(), &matches, &PathBuf::from("/tmp/moving_multiple.png"), &PathBuf::from("/tmp/moving_multiple.html")).expect("");
+        util::write_match_html(
+            image.width(),
+            image.height(),
+            &matches,
+            &PathBuf::from("/tmp/moving_multiple.png"),
+            &PathBuf::from("/tmp/moving_multiple.html"),
+        )
+        .expect("");
 
         for m in matches.iter() {
             let location = &m.location;
