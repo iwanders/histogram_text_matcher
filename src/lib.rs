@@ -449,8 +449,8 @@ fn decide_on_matches<'a>(
             let this_block_region = Rect {
                 x: first_glyph.position,
                 y,
-                w: block_width,
-                h: window_size,
+                w: block_width - 1, // -1 to stay inside our window instead of one pixel beyond.
+                h: window_size - 1,
             };
 
             // Determine the number of pixels this glyph sequence matched.
@@ -481,7 +481,7 @@ fn decide_on_matches<'a>(
                     }
 
                     // Check if this block overlaps the match were checking against.
-                    if m.location.overlaps_excluding(&this_block_region) {
+                    if m.location.overlaps(&this_block_region) {
                         // We overlap, and the current glyph sequence is still under consideration;
                         // Decide if better, more matching pixels is better, likely a longer
                         // word, or more complex glyph got matched.
