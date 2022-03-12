@@ -664,8 +664,18 @@ mod tests {
     }
 
     #[test]
-    fn test_bin_glyph_matcher_no_white_space_moving_multiple() {
+    fn test_moving_window() {
         println!();
+
+        use std::path::Path;
+        let location = String::from("/tmp/test_moving_window/");
+        let have_dir = Path::new(&location).is_dir();
+        if !have_dir
+        {
+            println!("Directory {} does not exist, create it to write files for inspection.", &location);
+        }
+
+
         use image::RgbImage;
         use std::path::PathBuf;
 
@@ -702,20 +712,27 @@ mod tests {
             render_standard_color(&mut image, *x, *y, text, *color);
         }
 
-        let _ = image.save("/tmp/moving_multiple.png").unwrap();
+
+        if have_dir
+        {
+            let _ = image.save(location.to_owned() + "input_image.png").unwrap();
+        }
 
         let image = image_support::rgb_image_to_view(&image);
         let labels = vec![(white, 0), (red, 1), (blue, 2)];
 
         let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
-        util::write_match_html(
-            image.width(),
-            image.height(),
-            &matches,
-            &PathBuf::from("/tmp/moving_multiple.png"),
-            &PathBuf::from("/tmp/moving_multiple.html"),
-        )
-        .expect("");
+
+        if have_dir {
+            util::write_match_html(
+                image.width(),
+                image.height(),
+                &matches,
+                &PathBuf::from(location.to_owned() + "input_image.png"),
+                &PathBuf::from(location.to_owned() + "moving_window.html"),
+            )
+            .expect("");
+        }
 
         for m in matches.iter() {
             let location = &m.location;
