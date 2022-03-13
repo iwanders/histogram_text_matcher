@@ -31,16 +31,12 @@ pub mod test_util;
 
 /*
     Improvements:
-        - Currently, a space character would be greedy and match until end of line.
-          We need something to limit this from occuring more than 'n' times in a row and
-          perform strip on the glyph sequence afterwards.
-        - Token matcher can't split based on the labels, because the histogram may have labels
-          in between glyphs that weren't colored appropriately. If we need this, we could set the
-          histogram labels to a sentinel, and ignore sentinels in this split.
-          Search for CONSIDER_MATCH_LABEL.
+        - Keep track of histogram bin per match-color to avoid accidentally matching pixels from
+          ruining the day.
 
     Current issues:
-        - Need a way to deal with non-perfect GlyphSet objects... disregard whitespace < N
+        - Need a way to deal with non-perfect GlyphSet objects... disregard whitespace < N -> Or...
+          just make the glyph set perfect.
 */
 
 /// Function to match a single color in an image and convert this to a histogram.
