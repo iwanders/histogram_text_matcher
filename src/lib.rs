@@ -147,6 +147,17 @@ pub struct Match2D<'a> {
     pub location: Rect,
 }
 
+impl<'a> Match2D<'a> {
+    /// Concatenate all tokens into a string.
+    pub fn to_string(&self) -> String {
+        self.tokens
+            .iter()
+            .map(|t| t.glyph.glyph())
+            .collect::<Vec<&str>>()
+            .join("")
+    }
+}
+
 /// A token in the histogram matching, denoting whitespace and glyphs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Token<'a> {
@@ -670,11 +681,12 @@ mod tests {
         use std::path::Path;
         let location = String::from("/tmp/test_moving_window/");
         let have_dir = Path::new(&location).is_dir();
-        if !have_dir
-        {
-            println!("Directory {} does not exist, create it to write files for inspection.", &location);
+        if !have_dir {
+            println!(
+                "Directory {} does not exist, create it to write files for inspection.",
+                &location
+            );
         }
-
 
         use image::RgbImage;
         use std::path::PathBuf;
@@ -712,9 +724,7 @@ mod tests {
             render_standard_color(&mut image, *x, *y, text, *color);
         }
 
-
-        if have_dir
-        {
+        if have_dir {
             let _ = image.save(location.to_owned() + "input_image.png").unwrap();
         }
 

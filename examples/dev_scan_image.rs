@@ -2,9 +2,39 @@ use image::open;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use histogram_text_matcher::RGB;
+
+use serde_json::Value;
+
+#[derive(Debug, Clone)]
+struct LabelError;
+impl std::fmt::Display for LabelError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "could not decode labels")
+    }
+}
+impl std::error::Error for LabelError {}
+
+fn parse_labels(data: &str) -> Result<Vec<(RGB, u32)>, Box<dyn std::error::Error>> {
+    let mut res: Vec<(RGB, u32)> = vec![];
+    let v: Value = serde_json::from_str(data)?;
+    match v {
+        Value::Array(arr) => {
+            for sub_v in arr {
+                let r = serde_json::from_value::<(u8, u8, u8, u32)>(sub_v)?;
+                res.push((RGB::rgb(r.0, r.1, r.2), r.3));
+            }
+        }
+        _ => {
+            return Err(Box::new(LabelError {}));
+        }
+    }
+    Ok(res)
+}
+
 fn main() {
     if std::env::args().len() <= 1 {
-        println!("expected: ./binary glyph_set_file input_image_file");
+        println!("expected: ./binary glyph_set_file input_image_file labels_json [output_file]");
         println!("glyph_set_file: File to load the glyph set from.");
         println!("input_image_file: File to search in.");
         std::process::exit(1);
@@ -16,24 +46,38 @@ fn main() {
 
     let input_image_file = std::env::args().nth(2).expect("no image file specified");
 
+    let labels = parse_labels(&std::env::args().nth(3).expect("no label_json"))
+        .expect("could not parse labels");
+
     let glyph_path = PathBuf::from(&glyph_set_file);
     let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&glyph_path)
-        .expect(&format!("could not load image at {:?}", glyph_set_file));
+        .expect(&format!("could not load glyph set at {:?}", glyph_set_file));
 
     let image_path = PathBuf::from(&input_image_file);
     let orig_image = open(&image_path)
         .expect(&format!("could not load image at {:?}", input_image_file))
         .to_rgb8();
 
+    let output_file;
+    if let Some(output_file_specified) = std::env::args().nth(4) {
+        output_file = output_file_specified;
+    } else {
+        // do something smart based on the file name.
+        let old_ext = image_path
+            .extension()
+            .expect("should have extension")
+            .to_str()
+            .expect("extension not valid string");
+        let filename = image_path
+            .file_name()
+            .expect("image should have file")
+            .to_str()
+            .expect("image file not valid string")
+            .to_owned();
+        output_file = String::from("/tmp/") + &filename.replace(old_ext, "html");
+    }
+
     let image = histogram_text_matcher::image_support::rgb_image_to_view(&orig_image);
-    use histogram_text_matcher::RGB;
-    let labels = vec![
-        (RGB::white(), 0),
-        (RGB::rgb(238, 238, 238), 1),
-        (RGB::rgb(100, 100, 255), 1),
-        (RGB::rgb(194, 192, 107), 1),
-        (RGB::rgb(194, 172, 109), 4),
-    ];
 
     let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
@@ -52,7 +96,7 @@ fn main() {
             let g = t.glyph.glyph();
             print!(" {g:?}#{l}");
         }
-        println!();
+        println!(" -> {}", m.to_string());
     }
     println!("Took {}", now.elapsed().as_secs_f64());
 
@@ -62,7 +106,7 @@ fn main() {
         orig_image.height(),
         &matches,
         &fs::canonicalize(image_path).expect("can be made absolute"),
-        &PathBuf::from("/tmp/zzz.html"),
+        &PathBuf::from(output_file),
     )
     .expect("should succeed");
 }

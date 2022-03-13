@@ -207,7 +207,10 @@ mod tests {
         let location = String::from("/tmp/test_alphabet/");
         let have_dir = Path::new(&location).is_dir();
         if !have_dir {
-            println!("Directory {} does not exist, create it to write files for inspection.", &location);
+            println!(
+                "Directory {} does not exist, create it to write files for inspection.",
+                &location
+            );
             return;
         }
         let _ = image.save(location + "dev_example_glyphs.png").unwrap();
