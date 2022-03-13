@@ -1,13 +1,13 @@
 use crate::Match2D;
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Function to render an html page for inspecting matches.
 pub fn write_match_html<'a>(
     width: u32,
     height: u32,
     matches: &[Match2D<'a>],
-    image_path: &PathBuf,
-    out_path: &PathBuf,
+    image_path: &Path,
+    out_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Write;
@@ -62,8 +62,10 @@ pub fn write_match_html<'a>(
             </head>
             <body>
                 <script>
+
             let d = (a) => document.getElementById(a);
             let combined = (match) => match.tokens.map((a) => a.glyph.glyph).join("");
+            let labels = (match) => match.tokens.map((a) => a.label).filter((v, i, a) => a.indexOf(v) === i).join(", ");
             function mouse_move(e, index){
                 let match = matches[index];
                 let match_str = combined(match);
@@ -81,13 +83,13 @@ pub fn write_match_html<'a>(
                 // Set tooltip to visible.
                 d("tooltip").setAttributeNS(null, "visibility", "visible");
                 // Set the fancy embedded html text.
-                d("tooltip-combined").innerHTML = match_str + "<br>" +  JSON.stringify(match.location);
+                d("tooltip-combined").innerHTML = match_str + "<br>" +  JSON.stringify(match.location) + "<br>label: " + labels(match);
             }
 
             function mouse_click(e, index){
                 let match = matches[index];
                 let match_str = combined(match);
-                d("message").innerHTML = match_str + "<br>" +  JSON.stringify(match.location);
+                d("message").innerHTML = match_str + "<br>" +  JSON.stringify(match.location) + "<br>label: " + labels(match);
             }
             function mouse_out(e, index){
                 d("tooltip").setAttributeNS(null, "visibility", "hidden");
