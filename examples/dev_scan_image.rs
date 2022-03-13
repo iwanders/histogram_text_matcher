@@ -2,8 +2,6 @@ use image::open;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use histogram_text_matcher::RGB;
-
 fn main() {
     if std::env::args().len() <= 1 {
         println!("expected: ./binary glyph_set_file input_image_file labels_json [output_file]");
@@ -18,8 +16,10 @@ fn main() {
 
     let input_image_file = std::env::args().nth(2).expect("no image file specified");
 
-    let labels = histogram_text_matcher::util::parse_json_labels(&std::env::args().nth(3).expect("no label_json"))
-        .expect("could not parse labels");
+    let labels = histogram_text_matcher::util::parse_json_labels(
+        &std::env::args().nth(3).expect("no label_json"),
+    )
+    .expect("could not parse labels");
 
     let glyph_path = PathBuf::from(&glyph_set_file);
     let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&glyph_path)
