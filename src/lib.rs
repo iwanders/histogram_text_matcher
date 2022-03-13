@@ -18,9 +18,7 @@ pub type SimpleHistogram = Vec<u8>;
 use serde::{Deserialize, Serialize};
 
 // This here ensures that we have image support when the feature is enabled, but also for all tests.
-#[cfg(feature = "image_support")]
-pub mod image_support;
-#[cfg(test)]
+#[cfg(any(feature = "image_support", test))]
 pub mod image_support;
 
 #[cfg(test)]
@@ -536,6 +534,81 @@ fn decide_on_matches<'a>(
     }
 }
 
+struct WindowHistogramIterator<'a, 'b> {
+    image: &'b dyn Image,
+    histogram: Vec<Bin>,
+    y: u32,
+    labels: &'a [ColorLabel],
+    window_size: u32,
+}
+
+impl<'a, 'b> WindowHistogramIterator<'a, 'b> {
+    pub fn new(
+        image: &'b dyn Image,
+        labels: &'a [ColorLabel],
+        window_size: u32,
+    ) -> WindowHistogramIterator<'a, 'b> {
+        let mut histogram: Vec<Bin> = Vec::new();
+        histogram.resize(image.width() as usize, Default::default());
+        for y in 0..window_size {
+            for x in 0..image.width() {
+                let p = image.pixel(x, y);
+                add_pixel(x as usize, &p, labels, &mut histogram);
+            }
+        }
+        WindowHistogramIterator {
+            image,
+            histogram,
+            y: 0,
+            labels,
+            window_size,
+        }
+    }
+}
+
+pub struct WindowHistogram {
+    histogram: Vec<Bin>,
+    y: u32,
+}
+impl WindowHistogram {
+    pub fn y(&self) -> u32 {
+        self.y
+    }
+    pub fn histogram(&self) -> &[Bin] {
+        &self.histogram
+    }
+}
+
+impl<'a, 'b> Iterator for WindowHistogramIterator<'a, 'b> {
+    type Item = WindowHistogram;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let new_res = Some(WindowHistogram {
+            histogram: self.histogram.clone(),
+            y: self.y,
+        });
+
+        if self.y < ((self.image.height() - self.window_size) as u32) {
+            // The row moving out of the window.
+            for x in 0..self.image.width() {
+                let p = self.image.pixel(x, self.y);
+                sub_pixel(x as usize, &p, self.labels, &mut self.histogram);
+            }
+
+            // Add the side moving into the histogram.
+            for x in 0..self.image.width() {
+                let p = self.image.pixel(x, self.y + self.window_size);
+                add_pixel(x as usize, &p, self.labels, &mut self.histogram);
+            }
+            self.y += 1;
+
+            return new_res;
+        }
+
+        None
+    }
+}
+
 /// Function to slide a window over an image and match glyphs for each histogram thats created.
 pub fn moving_windowed_histogram<'a>(
     image: &dyn Image,
@@ -550,18 +623,19 @@ pub fn moving_windowed_histogram<'a>(
     let mut res_consider: VecDeque<Match2D<'a>> = VecDeque::new();
     // Once the matches here move out of the window, we move them to res itself.
 
+    use std::time::Instant;
+    let mut duration_hist = 0.0;
+    let mut duration_matcher = 0.0;
+    let mut duration_decider = 0.0;
+    let mut duration_finalizer = 0.0;
+
+    /*
     let mut histogram: Vec<Bin> = Vec::<Bin>::new();
     histogram.resize(image.width() as usize, Default::default());
 
     // Start at the top, with zero width, then we sum rows for the window size
     // Then, we iterate down, at the bottom of the window add to the histogram
     // and the top row that moves out we subtract.
-
-    use std::time::Instant;
-    let mut duration_hist = 0.0;
-    let mut duration_matcher = 0.0;
-    let mut duration_decider = 0.0;
-    let mut duration_finalizer = 0.0;
 
     // Let us first, setup the first histogram, this is from 0 to window size.
     let now = Instant::now();
@@ -571,27 +645,125 @@ pub fn moving_windowed_histogram<'a>(
             add_pixel(x as usize, &p, labels, &mut histogram);
         }
     }
+    */
+
+    let mut now = Instant::now();
+    let mut iterable = WindowHistogramIterator::new(image, labels, window_size); 
     duration_hist += now.elapsed().as_secs_f64();
 
-    for y in 0..((image.height() - window_size) as u32) {
+    // for y in 0..((image.height() - window_size) as u32) {
+    for bin in iterable{
+        duration_hist += now.elapsed().as_secs_f64();
+        let y = bin.y();
+        let histogram = bin.histogram();
         // Here, we match the current histogram, and store matches.
 
         // Find glyphs in the histogram.
-        let now = Instant::now();
+        now = Instant::now();
         let matches = bin_glyph_matcher(&histogram, matcher);
         duration_matcher += now.elapsed().as_secs_f64();
 
         // Decide which matches are to be kept.
-        let now = Instant::now();
+        now = Instant::now();
         decide_on_matches(y, window_size, &matches, &mut res_consider);
         duration_decider += now.elapsed().as_secs_f64();
 
         // Move matches from res_consider to res_final.
-        let now = Instant::now();
+        now = Instant::now();
         finalize_considerations(y, &mut res_consider, &mut res_final);
         duration_finalizer += now.elapsed().as_secs_f64();
 
-        let now = Instant::now();
+        now = Instant::now();
+        // Subtract from the side moving out of the histogram.
+        // for x in 0..image.width() {
+            // let p = image.pixel(x, y);
+            // sub_pixel(x as usize, &p, labels, &mut histogram);
+        // }
+
+        // Add the side moving into the histogram.
+        // for x in 0..image.width() {
+            // let p = image.pixel(x, y + window_size);
+            // add_pixel(x as usize, &p, labels, &mut histogram);
+        // }
+    }
+
+    res_final.extend(res_consider.drain(..));
+
+    // println!("duration_hist: {duration_hist: >10.6}");
+    // println!("duration_matcher: {duration_matcher: >10.6}");
+    // println!("duration_decider: {duration_decider: >10.6}");
+    // println!("duration_finalizer: {duration_finalizer: >10.6}");
+
+    res_final
+}
+
+
+
+/// Function to slide a window over an image and match glyphs for each histogram thats created.
+pub fn moving_windowed_histogram2<'a>(
+    image: &dyn Image,
+    window_size: u32,
+    matcher: &'a dyn Matcher,
+    labels: &[ColorLabel],
+) -> Vec<Match2D<'a>> {
+    let mut res_final: Vec<Match2D<'a>> = Vec::new();
+
+    // Container for results under consideration, we check matches against overlap in this window
+    // and keep the parts that are the best matches.
+    let mut res_consider: VecDeque<Match2D<'a>> = VecDeque::new();
+    // Once the matches here move out of the window, we move them to res itself.
+
+    use std::time::Instant;
+    let mut duration_hist = 0.0;
+    let mut duration_matcher = 0.0;
+    let mut duration_decider = 0.0;
+    let mut duration_finalizer = 0.0;
+
+    /*
+    */
+    let mut histogram: Vec<Bin> = Vec::<Bin>::new();
+    histogram.resize(image.width() as usize, Default::default());
+
+    // Start at the top, with zero width, then we sum rows for the window size
+    // Then, we iterate down, at the bottom of the window add to the histogram
+    // and the top row that moves out we subtract.
+
+    // Let us first, setup the first histogram, this is from 0 to window size.
+    let now = Instant::now();
+    for y in 0..window_size {
+        for x in 0..image.width() {
+            let p = image.pixel(x, y);
+            add_pixel(x as usize, &p, labels, &mut histogram);
+        }
+    }
+
+    let mut now = Instant::now();
+    let mut iterable = WindowHistogramIterator::new(image, labels, window_size); 
+    duration_hist += now.elapsed().as_secs_f64();
+
+    for y in 0..((image.height() - window_size) as u32) {
+    // for bin in iterable{
+        duration_hist += now.elapsed().as_secs_f64();
+        // let y = bin.y();
+        // let histogram = bin.histogram();
+        // Here, we match the current histogram, and store matches.
+
+        // Find glyphs in the histogram.
+        now = Instant::now();
+        let matches = bin_glyph_matcher(&histogram, matcher);
+        duration_matcher += now.elapsed().as_secs_f64();
+
+        // Decide which matches are to be kept.
+        now = Instant::now();
+        decide_on_matches(y, window_size, &matches, &mut res_consider);
+        duration_decider += now.elapsed().as_secs_f64();
+
+        // Move matches from res_consider to res_final.
+        now = Instant::now();
+        finalize_considerations(y, &mut res_consider, &mut res_final);
+        duration_finalizer += now.elapsed().as_secs_f64();
+
+        now = Instant::now();
         // Subtract from the side moving out of the histogram.
         for x in 0..image.width() {
             let p = image.pixel(x, y);
@@ -603,18 +775,19 @@ pub fn moving_windowed_histogram<'a>(
             let p = image.pixel(x, y + window_size);
             add_pixel(x as usize, &p, labels, &mut histogram);
         }
-        duration_hist += now.elapsed().as_secs_f64();
     }
 
     res_final.extend(res_consider.drain(..));
 
-    println!("duration_hist: {duration_hist: >10.6}");
-    println!("duration_matcher: {duration_matcher: >10.6}");
-    println!("duration_decider: {duration_decider: >10.6}");
-    println!("duration_finalizer: {duration_finalizer: >10.6}");
+    // println!("duration_hist: {duration_hist: >10.6}");
+    // println!("duration_matcher: {duration_matcher: >10.6}");
+    // println!("duration_decider: {duration_decider: >10.6}");
+    // println!("duration_finalizer: {duration_finalizer: >10.6}");
 
     res_final
 }
+
+
 
 #[cfg(test)]
 mod tests {

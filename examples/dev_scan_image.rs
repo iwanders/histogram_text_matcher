@@ -4,34 +4,6 @@ use std::time::Instant;
 
 use histogram_text_matcher::RGB;
 
-use serde_json::Value;
-
-#[derive(Debug, Clone)]
-struct LabelError;
-impl std::fmt::Display for LabelError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "could not decode labels")
-    }
-}
-impl std::error::Error for LabelError {}
-
-fn parse_labels(data: &str) -> Result<Vec<(RGB, u32)>, Box<dyn std::error::Error>> {
-    let mut res: Vec<(RGB, u32)> = vec![];
-    let v: Value = serde_json::from_str(data)?;
-    match v {
-        Value::Array(arr) => {
-            for sub_v in arr {
-                let r = serde_json::from_value::<(u8, u8, u8, u32)>(sub_v)?;
-                res.push((RGB::rgb(r.0, r.1, r.2), r.3));
-            }
-        }
-        _ => {
-            return Err(Box::new(LabelError {}));
-        }
-    }
-    Ok(res)
-}
-
 fn main() {
     if std::env::args().len() <= 1 {
         println!("expected: ./binary glyph_set_file input_image_file labels_json [output_file]");
@@ -46,7 +18,7 @@ fn main() {
 
     let input_image_file = std::env::args().nth(2).expect("no image file specified");
 
-    let labels = parse_labels(&std::env::args().nth(3).expect("no label_json"))
+    let labels = histogram_text_matcher::util::parse_json_labels(&std::env::args().nth(3).expect("no label_json"))
         .expect("could not parse labels");
 
     let glyph_path = PathBuf::from(&glyph_set_file);

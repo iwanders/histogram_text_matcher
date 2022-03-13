@@ -1,5 +1,7 @@
 use crate::Match2D;
 use std::path::Path;
+use serde_json::Value;
+use crate::RGB;
 
 /// Function to render an html page for inspecting matches.
 pub fn write_match_html<'a>(
@@ -160,4 +162,15 @@ pub fn image_as_svg(image: &dyn crate::interface::Image, width: u32, height: u32
     }
     c.push_str("\n</svg>");
     c
+}
+
+
+pub fn parse_json_labels(data: &str) -> serde_json::Result<Vec<(RGB, u32)>> {
+    let mut res: Vec<(RGB, u32)> = vec![];
+    let v: Vec<(u8, u8, u8, u32)> = serde_json::from_str(data)?;
+    for r in v
+    {
+        res.push((RGB::rgb(r.0, r.1, r.2), r.3));
+    }
+    Ok(res)
 }
