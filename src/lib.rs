@@ -142,7 +142,7 @@ impl Bin {
 }
 
 /// Relate a particular color to a label.
-type ColorLabel = (RGB, u32);
+pub type ColorLabel = (RGB, u32);
 
 /// A glyph with an associated label.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
