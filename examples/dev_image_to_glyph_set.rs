@@ -3,9 +3,10 @@ use std::path::Path;
 
 fn main() {
     if std::env::args().len() <= 1 {
-        println!("expected: ./binary path_to_file line_number [output_dir]");
+        println!("expected: ./binary path_to_file line_number [color_labels] [output_dir]");
         println!("path_to_file: Path to png to run line and token matcher on.");
         println!("line_number: Line number to produce output for, -1 for all.");
+        println!("color_labels: Color labels json \"[[r, g, b, 0], [r2,g2,b2, 0]], like scan image, white if unset.\" ");
         println!("output_dir: Output directory to write files to defaults to /tmp/");
         std::process::exit(1);
     }
@@ -28,8 +29,15 @@ fn main() {
         only_line = None;
     }
 
+
+    let colors = histogram_text_matcher::util::parse_json_labels(
+        &std::env::args().nth(3).unwrap_or("[[255, 255, 255, 0]]".to_owned()),
+    )
+    .expect("could not parse labels").iter().map(|x| { x.0 }).collect::<Vec<histogram_text_matcher::RGB>>();
+
+
     let out_dir = std::env::args()
-        .nth(3)
+        .nth(4)
         .or_else(|| Option::Some("/tmp/".to_owned()));
 
     let path = Path::new(&file_path);
@@ -39,6 +47,7 @@ fn main() {
     let glyph_set = histogram_text_matcher::image_support::dev_image_to_glyph_set(
         &image,
         only_line,
+        &colors,
         &out_dir.as_deref(),
     );
 

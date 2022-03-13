@@ -25,12 +25,19 @@ impl From<&Rgb<u8>> for crate::RGB {
 
 pub fn filter_white(image: &RgbImage) -> RgbImage {
     let white = Rgb([255u8, 255u8, 255u8]);
+    filter_colors(image, &vec![white])
+}
 
+pub fn filter_colors(image: &RgbImage, colors: &[Rgb<u8>]) -> RgbImage {
     map_colors(image, |p| -> Rgb<u8> {
-        match p {
-            _ if p == white => white,
-            _ => Rgb([0u8, 0u8, 0u8]),
+        for c in colors.iter()
+        {
+            if *c == p
+            {
+                return p;
+            }
         }
+        Rgb([0u8, 0u8, 0u8])
     })
 }
 
@@ -210,20 +217,25 @@ fn optionally_save_image(image: &RgbImage, out_dir: &Option<&str>, name: &str) {
 pub fn dev_image_to_glyph_set(
     image: &RgbImage,
     only_line: Option<usize>,
+    colors: &[crate::RGB],
     out_dir: &Option<&str>,
 ) -> GlyphSet {
     let mut result: GlyphSet = Default::default();
 
     optionally_save_image(&image, out_dir, "dev_histogram_input.png");
 
-    let filtered = filter_white(image);
+    // let filtered = filter_white(image);
+    let image_colors = colors.iter().map(|x|{x.to_rgb()}).collect::<Vec<Rgb<u8>>>();
+    let filtered = filter_colors(image, &image_colors);
+
     optionally_save_image(&filtered, out_dir, "dev_histogram_filter_white.png");
 
-    let mut lines = line_splitter(image);
+    let mut lines = line_splitter(&filtered);
 
     let image_with_rect = image.clone();
 
-    let mut image_with_rect = filter_white(&image_with_rect);
+    // let mut image_with_rect = filter_white(&image_with_rect);
+    let mut image_with_rect = filter_colors(&image_with_rect, &image_colors);
     for b in lines.iter() {
         image_with_rect =
             imageproc::drawing::draw_hollow_rect(&image_with_rect, *b, Rgb([255u8, 0u8, 255u8]));
@@ -236,7 +248,7 @@ pub fn dev_image_to_glyph_set(
 
     for (r, b) in lines.iter().enumerate() {
         let sub_img = image::SubImage::new(
-            image,
+            &filtered,
             b.left() as u32,
             b.top() as u32,
             b.width(),
@@ -245,6 +257,12 @@ pub fn dev_image_to_glyph_set(
         result.line_height = std::cmp::max(result.line_height, b.height());
         let sub_img = sub_img.to_image();
         let tokens = token_splitter(&sub_img);
+        {
+            let row_img_gray =
+                image::DynamicImage::ImageRgb8(sub_img).into_luma8();
+            let row_img_histogram = image_to_histogram(&row_img_gray);
+            println!("row {r} -> {row_img_histogram:?}");
+        }
 
         for (c, z) in tokens.iter().enumerate() {
             let filtered_token = image::GenericImageView::view(
