@@ -114,12 +114,15 @@ pub fn histogram_glyph_matcher(
 /// Representation of a histogram bin and associated label color.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Bin {
+    /// The number of matching pixels in this histogram bin.
     pub count: u32,
+    /// The most recently seen label in this bin.
     pub label: u32,
 }
+
 impl Bin {
     /// Helper function to create a vector of bins from a slice of counts.
-    pub fn vec(v: &[u32]) -> Vec<Bin> {
+    pub fn from(v: &[u32]) -> Vec<Bin> {
         v.iter()
             .map(|x| Bin {
                 count: *x,
@@ -139,9 +142,12 @@ pub struct LabelledGlyph<'a> {
     pub label: u32,
 }
 
+/// A 2D match is a sequence of consecutive glyphs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash)]
 pub struct Match2D<'a> {
+    /// The glyphs that make up this match.
     pub tokens: Vec<LabelledGlyph<'a>>,
+    /// The location that is covered by this match.
     pub location: Rect,
 }
 
@@ -156,7 +162,7 @@ impl<'a> Match2D<'a> {
     }
 }
 
-/// A token in the histogram matching, denoting whitespace and glyphs.
+/// A 1D token found the histogram matching, denoting whitespace and glyphs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Token<'a> {
     WhiteSpace(usize), // Value denotes amount of whitespace pixels.
@@ -165,10 +171,10 @@ enum Token<'a> {
         label: u32,
     },
 }
-/// A match in the histogram at a certain position.
+/// A 1D match in the histogram at a certain position.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Match<'a> {
-    /// The matched token.
+    /// The matched token, can be whitespace or a glyph.
     pub token: Token<'a>,
     /// Position in the histogram
     pub position: u32,
@@ -202,6 +208,9 @@ pub trait Matcher<'a> {
 // Also allows for accounting for a whitespace character that is equal to empty histograms while
 // ensuring that can't occur twice at the end of a word.
 
+/// This function takes a histogram made up of bins and a matcher, with this it creates a set of
+/// matches in this particular histogram. These 1D matches hold tokens, either whitespace or
+/// glyphs at a particular position.
 fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
@@ -324,6 +333,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
     res
 }
 
+
 /// Struct to represent a rectangle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash)]
 pub struct Rect {
@@ -386,8 +396,8 @@ impl Rect {
 
 use std::collections::VecDeque;
 
-// Helper to add a row
-fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
+// Helper to add a row to the histogram.
+fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut [Bin]) {
     for (color, label) in labels.iter() {
         if color == p {
             histogram[x].count += 1;
@@ -397,8 +407,8 @@ fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>)
     }
 }
 
-// Helper to subtract a row.
-fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>) {
+// Helper to subtract a row from the histogram.
+fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut [Bin]) {
     for (color, _label) in labels.iter() {
         if color == p {
             histogram[x].count = histogram[x].count.saturating_sub(1);
@@ -407,7 +417,7 @@ fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut Vec<Bin>)
     }
 }
 
-// Helper to accept or discard matches based on whether they have moved out of the window.
+/// Helper to accept  matches if they have moved out of the window.
 fn finalize_considerations<'a>(
     y: u32,
     res_consider: &mut VecDeque<Match2D<'a>>,
@@ -418,7 +428,7 @@ fn finalize_considerations<'a>(
     }
 }
 
-// Helper to decide on matches that overlap with other matches.
+/// Helper to decide on matches that overlap with other matches.
 fn decide_on_matches<'a>(
     y: u32,
     window_size: u32,

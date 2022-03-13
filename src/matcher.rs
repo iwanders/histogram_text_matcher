@@ -281,12 +281,12 @@ mod matcher_tests {
         let mut matcher: LookupMatcher = Default::default();
         matcher.prepare(&z, false);
         // In this case, both a and b would match, but b is the longer match so should be taken.
-        let res = matcher.find_match(&Bin::vec(&[0, 0, 13, 0, 0, 0, 1]));
+        let res = matcher.find_match(&Bin::from(&[0, 0, 13, 0, 0, 0, 1]));
         assert!(res.is_some());
         assert_eq!(res.unwrap(), &z[1]);
 
         // This will match a, but not b, we should get a, because it still matches perfectly.
-        let res = matcher.find_match(&Bin::vec(&[0, 0, 13, 0, 0, 1]));
+        let res = matcher.find_match(&Bin::from(&[0, 0, 13, 0, 0, 1]));
         assert!(res.is_some());
         assert_eq!(res.unwrap(), &z[0]);
     }
