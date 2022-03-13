@@ -7,32 +7,13 @@ pub fn write_match_html<'a>(
     width: u32,
     height: u32,
     matches: &[Match2D<'a>],
+    labels: &[crate::ColorLabel],
     image_path: &Path,
     out_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Write;
     let mut c: String = String::new();
-    let mut rects: String = String::new();
-
-    for (i, m) in matches.iter().enumerate() {
-        rects.push_str(&format!(
-            r#"<rect id="roi_{i}" class="area-of-interest"
-                    width="{w}"
-                    height="{h}"
-                    x="{l}"
-                    y="{t}"
-                    onmousemove="mouse_move(event, {i});"
-                    onmouseout="mouse_out(event, {i});"
-                    onclick="mouse_click(event, {i});"
-                />
-                "#,
-            l = m.location.left(),
-            t = m.location.bottom(),
-            w = m.location.width(),
-            h = m.location.height(),
-        ));
-    }
 
     c.push_str(
         &r##"<!DOCTYPE html>
@@ -41,7 +22,6 @@ pub fn write_match_html<'a>(
                 <style>
                 svg .area-of-interest {
                     stroke-width: 2px;
-                    stroke: green;
                     fill: transparent;
                 }
                 svg .area-of-interest:hover {
@@ -63,12 +43,11 @@ pub fn write_match_html<'a>(
             </head>
             <body>
                 <script>
-
+            var update_id = null;
             let d = (a) => document.getElementById(a);
             let combined = (match) => match.tokens.map((a) => a.glyph.glyph).join("");
             let labels = (match) => match.tokens.map((a) => a.label).filter((v, i, a) => a.indexOf(v) === i).join(", ");
-            function mouse_move(e, index){
-                let match = matches[index];
+            function mouse_move(e, match){
                 let match_str = combined(match);
 
                 let svg_el = d("svg_el");
@@ -87,13 +66,56 @@ pub fn write_match_html<'a>(
                 d("tooltip-combined").innerHTML = match_str + "<br>" +  JSON.stringify(match.location) + "<br>label: " + labels(match);
             }
 
-            function mouse_click(e, index){
-                let match = matches[index];
+            function mouse_click(e, match){
                 let match_str = combined(match);
                 d("message").innerHTML = match_str + "<br>" +  JSON.stringify(match.location) + "<br>label: " + labels(match);
             }
-            function mouse_out(e, index){
+            function mouse_out(e, match){
                 d("tooltip").setAttributeNS(null, "visibility", "hidden");
+            }
+
+            function add_rectangles(matches) {
+                let rects = d("rectangles");
+                rects.innerHTML = "";
+                for (let match of matches) {
+                    var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttributeNS(null, 'width', match.location.w);
+                    rect.setAttributeNS(null, 'height', match.location.h);
+                    rect.setAttributeNS(null, 'x', match.location.x);
+                    rect.setAttributeNS(null, 'y', match.location.y);
+                    rect.onmousemove = (event) => mouse_move(event, match);
+                    rect.onmouseout = (event) => mouse_out(event, match);
+                    rect.onclick = (event) => mouse_click(event, match);
+                    if (update_id != null) {
+                      // If we are doing live updates, we probably want a text.
+                      var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                      text.setAttributeNS(null, 'x', match.location.x);
+                      text.setAttributeNS(null, 'y', match.location.y + match.location.h - 3);
+                      text.innerHTML = combined(match);
+                      rects.appendChild(text);
+                    }
+                    rect.classList.add('area-of-interest');
+                    rect.classList.add('label_' + match.tokens[0].label);
+                    rects.appendChild(rect);
+                }
+              }
+
+            var update_id = null;
+            function update_poll() {
+              let endpoint = d("remote_json_endpoint").value;
+              let interval = d("remote_json_poll_interval").value + 0;
+              clearInterval(update_id);
+              let f = () => {
+                fetch(endpoint)
+                  .then(response => response.json())
+                  .then(data => add_rectangles(data))
+                  .catch(error => {
+                    console.error('Got an error, stopping update:', error);
+                    clearInterval(update_id);
+                  });
+              };
+
+              update_id = setInterval(f, interval);
             }
             "##,
     );
@@ -101,7 +123,10 @@ pub fn write_match_html<'a>(
     c.push_str(&format!(
         r#"const matches = {};
         </script>
-        <p id="message">Click an area to provide the information here.</p>"#,
+        <p id="message">Click an area to provide the information here.</p>
+        <input id="remote_json_endpoint" type="text" onchange="update_poll()" />
+        <input id="remote_json_poll_interval" type="number" onchange="update_poll()" value="50" min="10" max="10000" />
+        "#,
         &serde_json::to_string(&matches).expect("cannot fail")
     ));
 
@@ -113,7 +138,13 @@ pub fn write_match_html<'a>(
         file = image_path.to_string_lossy()
     ));
 
-    c.push_str(&rects);
+    // Draw the group for the rectangles.
+    c.push_str(&format!(
+        r#"
+        <g id="rectangles" >
+        </g>
+        "#,
+    ));
 
     // Draw the tooltip after the rectangles such that it goes over them.
     c.push_str(&format!(
@@ -126,7 +157,37 @@ pub fn write_match_html<'a>(
         "#,
     ));
 
-    c.push_str(&"</svg></body></html>");
+    c.push_str(&"</svg>");
+
+    let mut color_label_css: String = String::new();
+    for (c, label) in labels.iter() {
+        color_label_css.push_str(&format!(
+            "svg .label_{l} {{
+                stroke: #{r:0>2x}{g:0>2x}{b:0>2x};
+            }}
+            ",
+            l = label,
+            r = c.r,
+            g = c.g,
+            b = c.b
+        ));
+    }
+
+    c.push_str(&format!(
+        r#"<style>
+            {}
+        </style>
+        "#,
+        color_label_css
+    ));
+
+    c.push_str(
+        &"
+      <script>
+          add_rectangles(matches);
+      </script>
+    </body></html>",
+    );
 
     let mut file = File::create(out_path)?;
     file.write(&c.as_bytes())?;

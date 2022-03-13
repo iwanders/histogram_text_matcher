@@ -77,6 +77,7 @@ fn main() {
         orig_image.width(),
         orig_image.height(),
         &matches,
+        &labels,
         &fs::canonicalize(image_path).expect("can be made absolute"),
         &PathBuf::from(output_file),
     )

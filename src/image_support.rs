@@ -30,10 +30,8 @@ pub fn filter_white(image: &RgbImage) -> RgbImage {
 
 pub fn filter_colors(image: &RgbImage, colors: &[Rgb<u8>]) -> RgbImage {
     map_colors(image, |p| -> Rgb<u8> {
-        for c in colors.iter()
-        {
-            if *c == p
-            {
+        for c in colors.iter() {
+            if *c == p {
                 return p;
             }
         }
@@ -225,7 +223,7 @@ pub fn dev_image_to_glyph_set(
     optionally_save_image(&image, out_dir, "dev_histogram_input.png");
 
     // let filtered = filter_white(image);
-    let image_colors = colors.iter().map(|x|{x.to_rgb()}).collect::<Vec<Rgb<u8>>>();
+    let image_colors = colors.iter().map(|x| x.to_rgb()).collect::<Vec<Rgb<u8>>>();
     let filtered = filter_colors(image, &image_colors);
 
     optionally_save_image(&filtered, out_dir, "dev_histogram_filter_white.png");
@@ -258,8 +256,7 @@ pub fn dev_image_to_glyph_set(
         let sub_img = sub_img.to_image();
         let tokens = token_splitter(&sub_img);
         {
-            let row_img_gray =
-                image::DynamicImage::ImageRgb8(sub_img).into_luma8();
+            let row_img_gray = image::DynamicImage::ImageRgb8(sub_img).into_luma8();
             let row_img_histogram = image_to_histogram(&row_img_gray);
             println!("row {r} -> {row_img_histogram:?}");
         }

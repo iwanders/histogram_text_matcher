@@ -753,7 +753,8 @@ mod tests {
         let rgb_image = render_standard_alphabet();
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &vec![RGB::white()], &None);
+        let mut glyph_set =
+            image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &vec![RGB::white()], &None);
         glyph_set.prepare();
 
         println!("Histogram: {hist:?}");
@@ -772,7 +773,8 @@ mod tests {
         let rgb_image = render_standard_alphabet();
         let image = image_support::rgb_image_to_view(&rgb_image);
         let hist = image_to_simple_histogram(&image, RGB::white());
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &vec![RGB::white()], &None);
+        let mut glyph_set =
+            image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &vec![RGB::white()], &None);
         glyph_set.prepare();
         let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
@@ -809,7 +811,12 @@ mod tests {
 
         // Create the glyph set.
         let (glyph_image, glyph_text) = standard_alphabet();
-        let mut glyph_set = image_support::dev_image_to_glyph_set(&glyph_image, Some(0), &vec![RGB::white()], &None);
+        let mut glyph_set = image_support::dev_image_to_glyph_set(
+            &glyph_image,
+            Some(0),
+            &vec![RGB::white()],
+            &None,
+        );
         // Patch up the glyph set's glyphs.
         for (i, c) in glyph_text.chars().enumerate() {
             let old_glyph = &glyph_set.entries[i];
@@ -854,6 +861,7 @@ mod tests {
                 image.width(),
                 image.height(),
                 &matches,
+                &labels,
                 &PathBuf::from(location.to_owned() + "input_image.png"),
                 &PathBuf::from(location.to_owned() + "moving_window.html"),
             )
@@ -1060,8 +1068,12 @@ mod tests {
 
         // Print the real histograms
         {
-            let mut glyph_set =
-                image_support::dev_image_to_glyph_set(&original_image, Some(0), &vec![RGB::white()], &None);
+            let mut glyph_set = image_support::dev_image_to_glyph_set(
+                &original_image,
+                Some(0),
+                &vec![RGB::white()],
+                &None,
+            );
             glyph_set.entries[0] = glyphs::Glyph::new(glyph_set.entries[0].hist(), &"a");
             glyph_set.entries[1] = glyphs::Glyph::new(glyph_set.entries[1].hist(), &"b");
             glyph_set.entries[2] = glyphs::Glyph::new(glyph_set.entries[2].hist(), &"c");
@@ -1079,7 +1091,12 @@ mod tests {
         }
 
         // Calculate the glyph set for the scaled image to output the segmentation.
-        let glyph_set = image_support::dev_image_to_glyph_set(&image, Some(0), &vec![RGB::white()], &output_dir);
+        let glyph_set = image_support::dev_image_to_glyph_set(
+            &image,
+            Some(0),
+            &vec![RGB::white()],
+            &output_dir,
+        );
 
         let glyph_set_output = location.clone() + "dev_histogram_boxes.png";
         let image = open(&glyph_set_output)

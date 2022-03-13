@@ -29,12 +29,15 @@ fn main() {
         only_line = None;
     }
 
-
     let colors = histogram_text_matcher::util::parse_json_labels(
-        &std::env::args().nth(3).unwrap_or("[[255, 255, 255, 0]]".to_owned()),
+        &std::env::args()
+            .nth(3)
+            .unwrap_or("[[255, 255, 255, 0]]".to_owned()),
     )
-    .expect("could not parse labels").iter().map(|x| { x.0 }).collect::<Vec<histogram_text_matcher::RGB>>();
-
+    .expect("could not parse labels")
+    .iter()
+    .map(|x| x.0)
+    .collect::<Vec<histogram_text_matcher::RGB>>();
 
     let out_dir = std::env::args()
         .nth(4)
