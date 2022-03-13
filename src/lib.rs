@@ -6,6 +6,7 @@
 // https://doc.rust-lang.org/rustc/profile-guided-optimization.html
 //
 // https://releases.llvm.org/11.0.1/docs/Benchmarking.html
+// https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html#baselines
 
 pub mod glyphs;
 
@@ -433,10 +434,10 @@ fn finalize_considerations<'a>(
 
 /// Helper to decide on matches that overlap with other matches.
 fn decide_on_matches<'a>(
-    matches: &[Match2D<'a>],
+    matches: Vec<Match2D<'a>>,
     res_consider: &mut VecDeque<Match2D<'a>>,
 ) {
-    for current_match in matches.iter() {
+    for current_match in matches {
         // Determine the number of pixels this glyph sequence matched.
         let current_matching = current_match
             .tokens
@@ -660,7 +661,7 @@ pub fn moving_windowed_histogram<'a>(
         let matches_2d = match_resolver(y, window_size, &matches);
 
         // Decide which matches are to be kept.
-        decide_on_matches(&matches_2d, &mut res_consider);
+        decide_on_matches(matches_2d, &mut res_consider);
 
         // Move matches from res_consider to res_final.
         finalize_considerations(y, &mut res_consider, &mut res_final);

@@ -9,6 +9,10 @@ license = "MIT OR Apache-2.0"
 opt-level=3
 incremental=true
 
+[lib]
+# Prevent capturing of benchmark commandline arguments... https://github.com/rust-lang/rust/issues/47241
+bench = false
+
 [dependencies]
 serde = {version="1.0", features = ["derive"] }
 serde_json = "1.0"
