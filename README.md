@@ -126,6 +126,7 @@ and not of interest. To deal with this the final algorithm takes shape:
 While the window moves over the image, container with matches-under-consideration is kept. Then, the
 following steps are iterated for each window position:
 - Use the input histogram to determine matching glyphs (`bin_glyph_matcher`).
+- Combine matched glyphs into blocks of consecutive matches (`match_resolver`).
 - Decide which matches are to be kept in consideration (`decide_on_matches`).
 - Save matches under consideration that are no longer touching the window (`finalize_considerations`).
 - Advance the window to the next row.

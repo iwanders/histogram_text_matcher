@@ -22,7 +22,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let labels =
         histogram_text_matcher::util::parse_json_labels(&color_labels).expect("invalid json");
 
-    c.bench_function("iterator", |b| {
+    c.bench_function("moving_windowed_histogram", |b| {
         b.iter(|| {
             let matches = histogram_text_matcher::moving_windowed_histogram(
                 &image,
@@ -35,5 +35,16 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, criterion_benchmark);
+fn short_warmup() -> Criterion {
+    Criterion::default()
+        .warm_up_time(std::time::Duration::new(5, 0))
+        .measurement_time(std::time::Duration::new(20, 0))
+        .sample_size(200)
+}
+
+criterion_group!(
+name = benches;
+config = short_warmup();
+targets = criterion_benchmark
+);
 criterion_main!(benches);

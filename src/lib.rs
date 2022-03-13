@@ -3,6 +3,10 @@
 
 // Should consider https://rust-lang.github.io/rust-clippy/rust-1.59.0/index.html#shadow_same
 
+// https://doc.rust-lang.org/rustc/profile-guided-optimization.html
+//
+// https://releases.llvm.org/11.0.1/docs/Benchmarking.html
+
 pub mod glyphs;
 
 mod interface;
@@ -164,7 +168,7 @@ impl<'a> Match2D<'a> {
 
 /// A 1D token found the histogram matching, denoting whitespace and glyphs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Token<'a> {
+pub enum Token<'a> {
     WhiteSpace(usize), // Value denotes amount of whitespace pixels.
     Glyph {
         glyph: &'a glyphs::Glyph,
@@ -173,7 +177,7 @@ enum Token<'a> {
 }
 /// A 1D match in the histogram at a certain position.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Match<'a> {
+pub struct Match<'a> {
     /// The matched token, can be whitespace or a glyph.
     pub token: Token<'a>,
     /// Position in the histogram
@@ -333,7 +337,6 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
     res
 }
 
-
 /// Struct to represent a rectangle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash)]
 pub struct Rect {
@@ -430,14 +433,70 @@ fn finalize_considerations<'a>(
 
 /// Helper to decide on matches that overlap with other matches.
 fn decide_on_matches<'a>(
-    y: u32,
-    window_size: u32,
-    matches: &[Match<'a>],
+    matches: &[Match2D<'a>],
     res_consider: &mut VecDeque<Match2D<'a>>,
 ) {
-    // Matches are 1D matches, we want consecutive glyph blocks.
-    // https://github.com/rust-lang/rust/issues/80552 would be nice... but lets stick
-    // with stable for now.
+    for current_match in matches.iter() {
+        // Determine the number of pixels this glyph sequence matched.
+        let current_matching = current_match
+            .tokens
+            .iter()
+            .map(|z| z.glyph.total())
+            .fold(0, |x, a| x + a);
+        // Now, we need to decide whether this block of glyphs is better than the ones currently
+        // in res_consider.
+
+        // Options:
+        //   - No overlap, always add this glyph.
+        //   - Overlap, decide which glyph is the best, remove the other.
+
+        // Check if this overlaps with others in the consideration buffer;
+        let mut do_insert = true;
+        *res_consider = res_consider
+            .drain(..)
+            .filter(|m| {
+                if do_insert == false {
+                    return true; // already discarded current glyph, keep everything.
+                }
+
+                // Check if this block overlaps the match were checking against.
+                if m.location.overlaps(&current_match.location) {
+                    // We overlap, and the current glyph sequence is still under consideration;
+                    // Decide if better, more matching pixels is better, likely a longer
+                    // word, or more complex glyph got matched.
+                    let mlen = m
+                        .tokens
+                        .iter()
+                        .map(|z| z.glyph.total())
+                        .fold(0, |x, a| x + a);
+
+                    // Make the decision.
+                    let new_is_better = current_matching >= mlen;
+
+                    if !new_is_better {
+                        // new is not better than what we have
+                        do_insert = false; // ensure we don't insert.
+                        return true; // keep old
+                    } else {
+                        return false; // drop old.
+                    }
+                }
+                return true; // no overlap, always keep m under consideration.
+            })
+            .collect::<_>();
+
+        if do_insert {
+            // We should insert our current entry.
+            res_consider.push_back(current_match.clone());
+        }
+    }
+}
+
+/// Function that resolves the individual 1D matches into consecutive glyphs and their Match2D
+/// Representation. Also deals with special things like glyphs that may not be consecutive like
+/// space characters.
+pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Vec<Match2D<'a>> {
+    let mut res: Vec<Match2D<'a>> = vec![];
 
     // So, whitespace in matches, which delimit the consecutive glyph blocks.
     let mut match_index: usize = 0;
@@ -472,76 +531,22 @@ fn decide_on_matches<'a>(
                 h: window_size - 1,
             };
 
-            // Determine the number of pixels this glyph sequence matched.
-            let current_matching = glyphs
-                .iter()
-                .map(|z| {
-                    if let Token::Glyph { glyph, .. } = z.token {
-                        glyph.total()
-                    } else {
-                        0
-                    }
-                })
-                .fold(0, |x, a| x + a);
-            // Now, we need to decide whether this block of glyphs is better than the ones currently
-            // in res_consider.
-
-            // Options:
-            //   - No overlap, always add this glyph.
-            //   - Overlap, decide which glyph is the best, remove the other.
-
-            // Check if this overlaps with others in the consideration buffer;
-            let mut do_insert = true;
-            *res_consider = res_consider
-                .drain(..)
-                .filter(|m| {
-                    if do_insert == false {
-                        return true; // already discarded current glyph, keep everything.
-                    }
-
-                    // Check if this block overlaps the match were checking against.
-                    if m.location.overlaps(&this_block_region) {
-                        // We overlap, and the current glyph sequence is still under consideration;
-                        // Decide if better, more matching pixels is better, likely a longer
-                        // word, or more complex glyph got matched.
-                        let mlen = m
-                            .tokens
-                            .iter()
-                            .map(|z| z.glyph.total())
-                            .fold(0, |x, a| x + a);
-
-                        // Make the decision.
-                        let new_is_better = current_matching >= mlen;
-
-                        if !new_is_better {
-                            // new is not better than what we have
-                            do_insert = false; // ensure we don't insert.
-                            return true; // keep old
-                        } else {
-                            return false; // drop old.
-                        }
-                    }
-                    return true; // no overlap, always keep m under consideration.
-                })
-                .collect::<_>();
-
-            if do_insert {
-                // We should insert our current entry.
-                res_consider.push_back(Match2D {
-                    tokens: glyphs
-                        .iter()
-                        .map(|z| match z.token {
-                            Token::Glyph { glyph, label } => LabelledGlyph { glyph, label },
-                            _ => panic!("should never have whitespace here"),
-                        })
-                        .collect::<_>(),
-                    location: this_block_region,
-                });
-            }
+            // We should insert our current entry.
+            res.push(Match2D {
+                tokens: glyphs
+                    .iter()
+                    .map(|z| match z.token {
+                        Token::Glyph { glyph, label } => LabelledGlyph { glyph, label },
+                        _ => panic!("should never have whitespace here"),
+                    })
+                    .collect::<_>(),
+                location: this_block_region,
+            });
 
             match_index += glyphs.len();
         }
     }
+    res
 }
 
 /// Create an iterator that generates histogram lines.
@@ -651,8 +656,11 @@ pub fn moving_windowed_histogram<'a>(
         // Find glyphs in the histogram.
         let matches = bin_glyph_matcher(&histogram, matcher);
 
+        // Resolve the found matches and group the consecutive tokens into 2d matches.
+        let matches_2d = match_resolver(y, window_size, &matches);
+
         // Decide which matches are to be kept.
-        decide_on_matches(y, window_size, &matches, &mut res_consider);
+        decide_on_matches(&matches_2d, &mut res_consider);
 
         // Move matches from res_consider to res_final.
         finalize_considerations(y, &mut res_consider, &mut res_final);
@@ -889,7 +897,12 @@ mod tests {
         }
         let mut res_consider: VecDeque<Match2D> = Default::default();
 
-        decide_on_matches(0, glyph_set.line_height as u32, &matches, &mut res_consider);
+        let matches_2d = match_resolver(0, glyph_set.line_height, &matches);
+
+        decide_on_matches(
+            &matches_2d,
+            &mut res_consider,
+        );
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
     }
