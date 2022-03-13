@@ -28,6 +28,14 @@ pub struct Glyph {
     /// Index of first non-zero bin in histogram.
     #[serde(skip)]
     first_non_zero: usize,
+
+    /// Whether this token may be matched in an lstrip match.
+    #[serde(default)]
+    ignore_on_lstrip: bool,
+
+    /// Denotes the maximum count of consecutive occurences of this glyph.
+    #[serde(default)]
+    max_consecutive: Option<usize>,
 }
 
 impl Glyph {
@@ -39,6 +47,8 @@ impl Glyph {
             lstrip_hist: vec![],
             total: 0,
             first_non_zero: 0,
+            ignore_on_lstrip: false,
+            max_consecutive: None,
         };
         z.prepare();
         z
@@ -56,7 +66,7 @@ impl Glyph {
 
         // First non zero gets set to index 0 in case histogram is only zeros.
         self.first_non_zero = if i < self.hist.len() {
-            self.hist().len() - self.lstrip_hist().len()
+            self.hist().len() - self.lstrip_hist().unwrap_or(&[0]).len()
         } else {
             0
         };
@@ -72,9 +82,19 @@ impl Glyph {
         &self.hist
     }
 
-    /// The histogram without empty bins on the left.
-    pub fn lstrip_hist(&self) -> &[HistogramValue] {
-        &self.lstrip_hist
+    /// The histogram without empty bins on the left, empty if this glyph is not allowed to
+    /// match lstripped situations.
+    pub fn lstrip_hist(&self) -> Option<&[HistogramValue]> {
+        if self.ignore_on_lstrip
+        {
+            return None;
+        }
+        Some(&self.lstrip_hist)
+    }
+
+    /// Set the ignore on lstrip variable to the provided state.
+    pub fn set_ignore_on_lstrip(&mut self, ignore: bool) {
+        self.ignore_on_lstrip = ignore;
     }
 
     /// The string that reprsents this glyph.
@@ -86,6 +106,16 @@ impl Glyph {
     pub fn first_non_zero(&self) -> usize {
         self.first_non_zero
     }
+
+    /// Return the maximum number of consecutive occurances of this glyph.
+    pub fn max_consecutive(&self) -> Option<usize> {
+        self.max_consecutive
+    }
+    /// Set the maximum consecutive glyph count to the provided value.
+    pub fn set_max_consecutive(&mut self, max_consecutive: Option<usize>) {
+        self.max_consecutive = max_consecutive;
+    }
+
 }
 
 /// GlyphSet holds a collection of glyphs and associated data.

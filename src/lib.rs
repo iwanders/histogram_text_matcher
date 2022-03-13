@@ -90,7 +90,10 @@ pub fn histogram_glyph_matcher(
         let mut scores: Vec<ScoreType> = vec![];
         scores.resize(set.entries.len(), 0 as ScoreType);
         for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
-            *score = calc_score_min(glyph.lstrip_hist(), &remainder, min_width);
+            // In this function, all glyphs must have an lstrip histogram as all whitespace is
+            // stirpped.
+            let hist = glyph.lstrip_hist().expect("all glyphs must have lstrip histogram");
+            *score = calc_score_min(hist, &remainder, min_width);
         }
         // println!("{scores:?}");
 
@@ -107,7 +110,7 @@ pub fn histogram_glyph_matcher(
             let score = scores[best];
             res.push((token.clone(), score));
 
-            i += token.lstrip_hist().len();
+            i += token.lstrip_hist().expect("all glyphs must have lstrip histogram").len();
         } else {
             // println!("Huh? didn't have a lowest score??");
             i += 1;
@@ -168,7 +171,7 @@ impl<'a> Match2D<'a> {
 }
 
 /// A 1D token found the histogram matching, denoting whitespace and glyphs.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Token<'a> {
     WhiteSpace(usize), // Value denotes amount of whitespace pixels.
     Glyph {
@@ -177,7 +180,7 @@ pub enum Token<'a> {
     },
 }
 /// A 1D match in the histogram at a certain position.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Match<'a> {
     /// The matched token, can be whitespace or a glyph.
     pub token: Token<'a>,
@@ -324,7 +327,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
 
             // Advance the cursor by the width of the glyph we just matched.
             i += if use_stripped {
-                found_glyph.lstrip_hist().len()
+                found_glyph.lstrip_hist().expect("must have had a lstrip histogram to find it").len()
             } else {
                 found_glyph.hist().len()
             };
@@ -901,12 +904,65 @@ mod tests {
         let matches_2d = match_resolver(0, glyph_set.line_height, &matches);
 
         decide_on_matches(
-            &matches_2d,
+            matches_2d,
             &mut res_consider,
         );
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
     }
+
+    #[test]
+    fn matching_with_space_character() {
+        // Some dummy glyphs
+        let s1: Vec<u8> = vec![0, 0, 13, 13, 1, 1, 3, 4, 5, 3, 0];
+        let s2: Vec<u8> = vec![0, 5, 3, 2, 3, 2, 2, 2, 3, 2, 4, 0, 0];
+        let space: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0];
+
+        let mut glyph_set: glyphs::GlyphSet = Default::default();
+        glyph_set.entries.push(glyphs::Glyph::new(&s1, &"s1"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s2, &"s2"));
+        let mut space_glyph = glyphs::Glyph::new(&space, &" ");
+
+        space_glyph.set_ignore_on_lstrip(true);
+        space_glyph.set_max_consecutive(Some(1));
+        glyph_set.entries.push(space_glyph);
+
+        glyph_set.line_height = 1;
+        glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
+        println!("Glyph set: {glyph_set:?}");
+
+        let mut input: Vec<u8> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        input.extend(s1.clone());
+        input.extend(s2.clone());
+        input.extend(space.clone());
+        input.extend(s2.clone());
+        input.extend(s1.clone());
+        input.extend(space.clone());
+        input.extend(space.clone());
+        input.extend(s2.clone());
+        input.extend(s1.clone());
+        input.extend(s1.clone());
+        input.extend(s2.clone());
+        input.extend(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        // Current outcome
+        // 's1s2 s2s1  s2s1s1s2   '
+
+        // Desired outcome, single space is allowed, more than one causes split and strip;
+        // 's1s2 s2s1'
+        // 's2s1s1s2'
+
+        let binned = simple_histogram_to_bin_histogram(&input);
+        let matches = bin_glyph_matcher(&binned, &matcher);
+        let matches_2d = match_resolver(0, glyph_set.line_height, &matches);
+        for m in matches_2d.iter()
+        {
+            println!("{m:?} ->  '{}'", m.to_string());
+        }
+
+    }
+
 
     #[test]
     fn render_readme_images() {
