@@ -92,7 +92,9 @@ pub fn histogram_glyph_matcher(
         for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
             // In this function, all glyphs must have an lstrip histogram as all whitespace is
             // stirpped.
-            let hist = glyph.lstrip_hist().expect("all glyphs must have lstrip histogram");
+            let hist = glyph
+                .lstrip_hist()
+                .expect("all glyphs must have lstrip histogram");
             *score = calc_score_min(hist, &remainder, min_width);
         }
         // println!("{scores:?}");
@@ -110,7 +112,10 @@ pub fn histogram_glyph_matcher(
             let score = scores[best];
             res.push((token.clone(), score));
 
-            i += token.lstrip_hist().expect("all glyphs must have lstrip histogram").len();
+            i += token
+                .lstrip_hist()
+                .expect("all glyphs must have lstrip histogram")
+                .len();
         } else {
             // println!("Huh? didn't have a lowest score??");
             i += 1;
@@ -327,7 +332,10 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
 
             // Advance the cursor by the width of the glyph we just matched.
             i += if use_stripped {
-                found_glyph.lstrip_hist().expect("must have had a lstrip histogram to find it").len()
+                found_glyph
+                    .lstrip_hist()
+                    .expect("must have had a lstrip histogram to find it")
+                    .len()
             } else {
                 found_glyph.hist().len()
             };
@@ -436,10 +444,7 @@ fn finalize_considerations<'a>(
 }
 
 /// Helper to decide on matches that overlap with other matches.
-fn decide_on_matches<'a>(
-    matches: Vec<Match2D<'a>>,
-    res_consider: &mut VecDeque<Match2D<'a>>,
-) {
+fn decide_on_matches<'a>(matches: Vec<Match2D<'a>>, res_consider: &mut VecDeque<Match2D<'a>>) {
     for current_match in matches {
         // Determine the number of pixels this glyph sequence matched.
         let current_matching = current_match
@@ -511,44 +516,44 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
             continue;
         }
 
-        if let Token::Glyph { .. } = matches[match_index].token {
+        if let Token::Glyph { glyph, .. } = matches[match_index].token {
+            // Trimming left is easy, just check if this glyph should be tirmmed and advance if so.
+            if glyph.trim_left() {
+                match_index += 1;
+                continue;
+            }
+
             // Find the index where this consecutive glyph block ends, this is either on whitespace
             // or when max_consecutive is reached for a particular glyph.
-            let mut block_consecutive_advance = 0;
             let mut block_end = matches.len() - match_index;
-            let mut consecutive_counter : Option<(&glyphs::Glyph, usize)> = None;
-            for (potential_i, potential) in matches[match_index..].iter().enumerate()
-            {
+            let mut consecutive_counter: Option<(&glyphs::Glyph, usize)> = None;
+            for (potential_i, potential) in matches[match_index..].iter().enumerate() {
                 match potential.token {
-                    Token::WhiteSpace(v) => {
+                    Token::WhiteSpace(_v) => {
                         block_end = potential_i;
                         break;
-                    },
-                    Token::Glyph{ref glyph, label} => {
+                    }
+                    Token::Glyph { ref glyph, .. } => {
                         // Check if this glyph has a maximum consecutive count.
-                        if let Some(max_consecutive) = glyph.max_consecutive()
-                        {
+                        if let Some(max_consecutive) = glyph.max_consecutive() {
                             // Check if there's already a counter.
                             if let Some((counting_glyph, count)) = consecutive_counter.as_mut() {
                                 // Check if the glyph is identical, else clear it.
                                 if glyph != counting_glyph {
                                     consecutive_counter = None;
-                                } else
-                                {
+                                } else {
                                     *count += 1;
                                     // Same glyph, increment the counter.
                                     if *count > max_consecutive {
                                         block_end = potential_i;
                                         break;
                                     }
-
                                 }
                             } else {
                                 // No counter yet, but we should have one.
                                 consecutive_counter = Some((glyph, 1));
                             }
-                        } else
-                        {
+                        } else {
                             consecutive_counter = None;
                         }
                     }
@@ -557,8 +562,28 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
 
             // Determine the slice of glyphs, first and last.
             let glyphs = &matches[match_index..match_index + block_end];
+            let untrimmed_length = glyphs.len();
 
-            // Perform trimming.
+            // Now, all that remains is trimming the right side.
+            // Perform trimming if glyphs on the sides require so.
+            let mut right_limit = glyphs.len();
+            for rev_i in (0..glyphs.len()).rev() {
+                if let Token::Glyph { glyph, .. } = glyphs[rev_i].token {
+                    if glyph.trim_right() {
+                        right_limit = rev_i;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            let glyphs = &glyphs[..right_limit];
+
+            if glyphs.is_empty() {
+                match_index += untrimmed_length;
+                continue;
+            }
 
             let first_glyph = glyphs.first().expect("never empty");
             let last_glyph = glyphs.last().expect("never empty");
@@ -584,7 +609,7 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
                 location: this_block_region,
             });
 
-            match_index += glyphs.len() + block_consecutive_advance;
+            match_index += untrimmed_length;
         }
     }
     res
@@ -940,10 +965,7 @@ mod tests {
 
         let matches_2d = match_resolver(0, glyph_set.line_height, &matches);
 
-        decide_on_matches(
-            matches_2d,
-            &mut res_consider,
-        );
+        decide_on_matches(matches_2d, &mut res_consider);
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
     }
@@ -962,6 +984,8 @@ mod tests {
 
         space_glyph.set_ignore_on_lstrip(false);
         space_glyph.set_max_consecutive(Some(1));
+        space_glyph.set_trim_left(true);
+        space_glyph.set_trim_right(true);
         glyph_set.entries.push(space_glyph);
 
         glyph_set.line_height = 1;
@@ -998,13 +1022,10 @@ mod tests {
         let binned = simple_histogram_to_bin_histogram(&input);
         let matches = bin_glyph_matcher(&binned, &matcher);
         let matches_2d = match_resolver(0, glyph_set.line_height, &matches);
-        for m in matches_2d.iter()
-        {
+        for m in matches_2d.iter() {
             println!("{m:?} ->  '{}'", m.to_string());
         }
-
     }
-
 
     #[test]
     fn render_readme_images() {

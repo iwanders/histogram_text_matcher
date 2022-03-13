@@ -23,12 +23,9 @@ fn recurse_glyph_matching(n: &mut LookupNode, glyphs: &[Glyph], index: usize, st
     // Iterate through all the glyph indices in this node.
     for glyph in n.glyphs.iter() {
         let hist = if stripped {
-            if let Some(h) = glyph.lstrip_hist()
-            {
+            if let Some(h) = glyph.lstrip_hist() {
                 h
-            }
-            else
-            {
+            } else {
                 continue; // no lstrip histogram, skip this in lstrip situations.
             }
         } else {

@@ -95,8 +95,7 @@ impl Glyph {
     /// The histogram without empty bins on the left, empty if this glyph is not allowed to
     /// match lstripped situations.
     pub fn lstrip_hist(&self) -> Option<&[HistogramValue]> {
-        if self.ignore_on_lstrip
-        {
+        if self.ignore_on_lstrip {
             return None;
         }
         Some(&self.lstrip_hist)
