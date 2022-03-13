@@ -108,11 +108,7 @@ pub fn write_match_html<'a>(
               let f = () => {
                 fetch(endpoint)
                   .then(response => response.json())
-                  .then(data => add_rectangles(data))
-                  .catch(error => {
-                    console.error('Got an error, stopping update:', error);
-                    clearInterval(update_id);
-                  });
+                  .then(data => add_rectangles(data));
               };
 
               update_id = setInterval(f, interval);
