@@ -36,6 +36,14 @@ pub struct Glyph {
     /// Denotes the maximum count of consecutive occurences of this glyph.
     #[serde(default)]
     max_consecutive: Option<usize>,
+
+    /// Denotes whether the character is to be trimmed from the right side from matches.
+    #[serde(default)]
+    trim_right: bool,
+
+    /// Denotes whether the character is to be trimmed from the left side from matches.
+    #[serde(default)]
+    trim_left: bool,
 }
 
 impl Glyph {
@@ -49,6 +57,8 @@ impl Glyph {
             first_non_zero: 0,
             ignore_on_lstrip: false,
             max_consecutive: None,
+            trim_right: false,
+            trim_left: false,
         };
         z.prepare();
         z
@@ -111,11 +121,28 @@ impl Glyph {
     pub fn max_consecutive(&self) -> Option<usize> {
         self.max_consecutive
     }
+
     /// Set the maximum consecutive glyph count to the provided value.
     pub fn set_max_consecutive(&mut self, max_consecutive: Option<usize>) {
         self.max_consecutive = max_consecutive;
     }
 
+    /// If true, this glyph will be trimmed from matches on the right.
+    pub fn trim_right(&self) -> bool {
+        self.trim_right
+    }
+    /// Set the right trim state for this glyph.
+    pub fn set_trim_right(&mut self, trim_right: bool) {
+        self.trim_right = trim_right;
+    }
+    /// If true, this glyph will be trimmed from matches on the left.
+    pub fn trim_left(&self) -> bool {
+        self.trim_left
+    }
+    /// Set the left trim state for this glyph.
+    pub fn set_trim_left(&mut self, trim_left: bool) {
+        self.trim_left = trim_left;
+    }
 }
 
 /// GlyphSet holds a collection of glyphs and associated data.

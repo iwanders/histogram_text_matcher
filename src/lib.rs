@@ -512,17 +512,54 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
         }
 
         if let Token::Glyph { .. } = matches[match_index].token {
-            // Find the index where this consecutive glyph block ends.
-            let block_end = matches[match_index..]
-                .iter()
-                .position(|z| {
-                    std::mem::discriminant(&z.token)
-                        == std::mem::discriminant(&Token::WhiteSpace(0))
-                })
-                .unwrap_or(matches.len() - match_index);
+            // Find the index where this consecutive glyph block ends, this is either on whitespace
+            // or when max_consecutive is reached for a particular glyph.
+            let mut block_consecutive_advance = 0;
+            let mut block_end = matches.len() - match_index;
+            let mut consecutive_counter : Option<(&glyphs::Glyph, usize)> = None;
+            for (potential_i, potential) in matches[match_index..].iter().enumerate()
+            {
+                match potential.token {
+                    Token::WhiteSpace(v) => {
+                        block_end = potential_i;
+                        break;
+                    },
+                    Token::Glyph{ref glyph, label} => {
+                        // Check if this glyph has a maximum consecutive count.
+                        if let Some(max_consecutive) = glyph.max_consecutive()
+                        {
+                            // Check if there's already a counter.
+                            if let Some((counting_glyph, count)) = consecutive_counter.as_mut() {
+                                // Check if the glyph is identical, else clear it.
+                                if glyph != counting_glyph {
+                                    consecutive_counter = None;
+                                } else
+                                {
+                                    *count += 1;
+                                    // Same glyph, increment the counter.
+                                    if *count > max_consecutive {
+                                        block_end = potential_i;
+                                        break;
+                                    }
+
+                                }
+                            } else {
+                                // No counter yet, but we should have one.
+                                consecutive_counter = Some((glyph, 1));
+                            }
+                        } else
+                        {
+                            consecutive_counter = None;
+                        }
+                    }
+                }
+            }
 
             // Determine the slice of glyphs, first and last.
             let glyphs = &matches[match_index..match_index + block_end];
+
+            // Perform trimming.
+
             let first_glyph = glyphs.first().expect("never empty");
             let last_glyph = glyphs.last().expect("never empty");
 
@@ -547,7 +584,7 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
                 location: this_block_region,
             });
 
-            match_index += glyphs.len();
+            match_index += glyphs.len() + block_consecutive_advance;
         }
     }
     res
@@ -923,7 +960,7 @@ mod tests {
         glyph_set.entries.push(glyphs::Glyph::new(&s2, &"s2"));
         let mut space_glyph = glyphs::Glyph::new(&space, &" ");
 
-        space_glyph.set_ignore_on_lstrip(true);
+        space_glyph.set_ignore_on_lstrip(false);
         space_glyph.set_max_consecutive(Some(1));
         glyph_set.entries.push(space_glyph);
 
@@ -944,14 +981,19 @@ mod tests {
         input.extend(s1.clone());
         input.extend(s1.clone());
         input.extend(s2.clone());
-        input.extend(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        input.extend(space.clone()); // space here
+        input.extend(vec![0, 0, 0]); // non-space whitespace
+        input.extend(s2.clone());
+        input.extend(s1.clone());
+        input.extend(vec![0, 0, 0]);
 
         // Current outcome
-        // 's1s2 s2s1  s2s1s1s2   '
+        // 's1s2 s2s1  s2s1s1s2   |s2s1'
 
         // Desired outcome, single space is allowed, more than one causes split and strip;
         // 's1s2 s2s1'
-        // 's2s1s1s2'
+        // 's2s1s1s2 '
+        // 's2s1'
 
         let binned = simple_histogram_to_bin_histogram(&input);
         let matches = bin_glyph_matcher(&binned, &matcher);
