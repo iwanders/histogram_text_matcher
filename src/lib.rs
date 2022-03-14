@@ -312,7 +312,8 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
         if let Some(found_glyph) = glyph_search {
             // Calculate the true position, depends on whether we used stripped values.
             let first_non_zero = found_glyph.first_non_zero();
-            let position = (i as u32).saturating_sub(if use_stripped { first_non_zero } else { 0 } as u32);
+            let position =
+                (i as u32).saturating_sub(if use_stripped { first_non_zero } else { 0 } as u32);
             // Position where histogram where this letter has the first non-zero;
             let label_position = position as usize + first_non_zero;
 
@@ -972,6 +973,40 @@ mod tests {
         decide_on_matches(matches_2d, &mut res_consider);
         assert_eq!(res_consider.len(), 6);
         println!("res_consider: {res_consider:?}");
+    }
+
+    #[test]
+    #[allow(unreachable_code)]
+    fn histogram_matching_real_longest_char_not_best() {
+        return;
+        let input: Vec<u8> = vec![
+            0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 5, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0,
+        ];
+        // The real matches.
+        let s1: Vec<u8> = vec![0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0];
+        let s2: Vec<u8> = vec![0, 0, 0, 5, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0];
+        // And then the character that ruins it all.
+        let s3: Vec<u8> = vec![0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0];
+
+        let mut glyph_set: glyphs::GlyphSet = Default::default();
+        glyph_set.entries.push(glyphs::Glyph::new(&s1, &"s1"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s2, &"s2"));
+        glyph_set.entries.push(glyphs::Glyph::new(&s3, &"s3"));
+        glyph_set.line_height = 1;
+        glyph_set.prepare();
+        let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
+
+        let binned = simple_histogram_to_bin_histogram(&input);
+        let matches = bin_glyph_matcher(&binned, &matcher);
+
+        let mut glyph_counter = 0;
+        for (i, v) in matches.iter().enumerate() {
+            println!("{i}: {v:?}");
+            if let Token::Glyph { glyph, .. } = v.token {
+                assert!(*glyph == glyph_set.entries[glyph_counter]);
+                glyph_counter += 1;
+            }
+        }
     }
 
     #[test]
