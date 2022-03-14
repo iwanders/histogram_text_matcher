@@ -198,16 +198,18 @@ impl<'a> LookupMatcher<'a> {
                 ));
                 r.push_str(&format!("<base> {} Leaf: {}", n.leafs.len(), glyph_string));
                 r.push_str("\"\n                        ");
-                if n.leafs.len() > 1 && n.children.len() == 0 {
+                if n.leafs.len() >= 1 && n.children.len() != 0 {
+                    // Leaf here, but there's also children.
+                    // Node is hard to reach, there is a glyph that has the same histogram so far
+                    // the same but longer.
+                    r.push_str("fillcolor = magenta\n                        ");
+                    r.push_str("style = filled\n                        ");
+                } else if n.leafs.len() > 1 && n.children.len() == 0 {
                     // Node is always ambiguous, exact same histogram.
                     r.push_str("fillcolor = red\n                        ");
                     r.push_str("style = filled\n                        ");
-                } else if n.leafs.len() > 1 {
-                    // Node is hard to reach, there is a glyph that is the same but longer.
-                    r.push_str("fillcolor = magenta\n                        ");
-                    r.push_str("style = filled\n                        ");
                 } else if n.leafs.len() == 1 {
-                    // Node is a leaf and it's a unique histogram / path to get here.
+                    // Node is a leaf and it's by itself, unique histogram.
                     r.push_str("fillcolor = green\n                        ");
                     r.push_str("style = filled\n                        ");
                 }
