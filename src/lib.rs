@@ -312,7 +312,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
         if let Some(found_glyph) = glyph_search {
             // Calculate the true position, depends on whether we used stripped values.
             let first_non_zero = found_glyph.first_non_zero();
-            let position = i as u32 - if use_stripped { first_non_zero } else { 0 } as u32;
+            let position = (i as u32).saturating_sub(if use_stripped { first_non_zero } else { 0 } as u32);
             // Position where histogram where this letter has the first non-zero;
             let label_position = position as usize + first_non_zero;
 
