@@ -476,7 +476,7 @@ fn decide_on_matches<'a>(matches: Vec<Match2D<'a>>, res_consider: &mut VecDeque<
                         .fold(0, |x, a| x + a);
 
                     // Make the decision.
-                    let new_is_better = current_matching >= mlen;
+                    let new_is_better = current_matching > mlen;
 
                     if !new_is_better {
                         // new is not better than what we have
