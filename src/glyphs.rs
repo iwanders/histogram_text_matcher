@@ -201,7 +201,10 @@ fn to_yaml_string(set: &GlyphSet) -> String {
         s.push_str(&format!("entries:\n"));
         for entry in set.entries.iter() {
             s.push_str(&format!("  -\n"));
-            s.push_str(&format!("    glyph: \"{}\"\n", entry.glyph));
+            s.push_str(&format!(
+                "    glyph: \"{}\"\n",
+                entry.glyph.replace("\\", "\\\\").replace("\"", "\\\"")
+            ));
             s.push_str(&format!(
                 "    hist: {}\n",
                 serde_json::to_string(&entry.hist).unwrap()

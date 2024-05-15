@@ -8,21 +8,21 @@ use histogram_text_matcher::image_support::image_to_histogram;
 use std::path::{Path, PathBuf};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = clap::Command::new("generate_glyph_set")
-            .arg(arg!([fontpath] "The font to use, path to ttf.").required(true).value_parser(clap::value_parser!(std::path::PathBuf)))
-            .arg(arg!([fontsize] "The size to use, integer, like 20.").required(true).value_parser(clap::value_parser!(f32)))
-            .arg(
-                clap::arg!(--"output-dir" <PATH>).value_parser(clap::value_parser!(std::path::PathBuf))
-                .default_value("."),
-            )
-            .arg(
-                clap::arg!(--"filename" <FILENAME> "Use this filename in the output directory instead of the input filename"),
-            )
-            .arg(
-                clap::arg!(--"name" <NAME> "Defaults to the file name of the image.").value_parser(clap::builder::NonEmptyStringValueParser::new()),
-            )
-            .arg(
-                clap::arg!(--"description" <DESCRIPTION> "A longer description of this pattern." ).value_parser(clap::builder::NonEmptyStringValueParser::new()),
-            )
+        .arg(
+            arg!([fontpath] "The font to use, path to ttf.")
+                .required(true)
+                .value_parser(clap::value_parser!(std::path::PathBuf)),
+        )
+        .arg(
+            arg!([fontsize] "The size to use, integer, like 20.")
+                .required(true)
+                .value_parser(clap::value_parser!(f32)),
+        )
+        .arg(
+            clap::arg!(--"threshold" <THRESHOLD>)
+                .value_parser(clap::value_parser!(u8))
+                .default_value("255"),
+        )
         .get_matches();
 
     let font_path = matches
@@ -36,6 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let font_size = matches
         .get_one::<f32>("fontsize")
         .expect("missing fontsize");
+    let threshold = matches
+        .get_one::<u8>("threshold")
+        .expect("missing threshold");
+    println!("threshold: {threshold}");
 
     // let line_offset = 2.0 * font_size;
 
@@ -69,7 +73,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Extract saturated black.
             let mut v = image.clone();
             for p in v.pixels_mut() {
-                if *p != Rgba([0u8, 0u8, 0u8, 255u8]) {
+                if p.0[3] >= *threshold {
+                    *p = Rgba([0u8, 0u8, 0u8, 255u8]);
+                } else {
                     *p = Rgba([255u8, 255u8, 255u8, 0u8]);
                 }
             }
