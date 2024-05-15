@@ -3,7 +3,6 @@ use image::imageops::colorops::grayscale;
 use image::{Rgb, RgbImage, GenericImage};
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
-use imageproc::drawing::{Canvas, Blend};
 
 use std::path::Path;
 

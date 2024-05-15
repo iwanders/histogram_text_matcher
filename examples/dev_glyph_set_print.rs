@@ -1,6 +1,6 @@
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;
-use ab_glyph::{Font, FontVec, PxScale};
+use ab_glyph::{FontVec, PxScale};
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

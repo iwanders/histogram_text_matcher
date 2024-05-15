@@ -6,8 +6,7 @@ authors = ["Ivor Wanders <ivor@iwanders.net>"]
 license = "MIT OR Apache-2.0"
 
 [profile.release]
-opt-level=3
-incremental=true
+debug = 1
 
 [lib]
 # Prevent capturing of benchmark commandline arguments... https://github.com/rust-lang/rust/issues/47241
@@ -22,8 +21,7 @@ imageproc = {version = "0.24.0"}
 ab_glyph = "0.2.23"
 
 [dev-dependencies]
-criterion = "0.3"
-
+criterion = "0.5.1"
 
 [[bench]]
 name = "bench_scan_image"
