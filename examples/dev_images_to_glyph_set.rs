@@ -1,4 +1,4 @@
-use histogram_text_matcher::glyphs::GlyphSet;
+use histogram_text_matcher::glyphs::{Glyph, GlyphSet};
 use histogram_text_matcher::image_support::image_to_histogram;
 use histogram_text_matcher::Rect;
 use image::open;
@@ -52,9 +52,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let collection = load_collection(&PathBuf::from(file_path))?;
 
     println!("c: {collection:#?}");
-    let mut glyph_set: GlyphSet = Default::default();
-    let mut tallest = 0;
-
     let mut text_histogram = vec![];
 
     for (i, img) in collection.images.iter().enumerate() {
@@ -97,15 +94,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sub_img_gray = image::DynamicImage::ImageRgb8(masked_img).into_luma8();
         let histogram = image_to_histogram(&sub_img_gray);
         sub_img_gray.save(format!("/tmp/{name}_{i}_gray.png"))?;
-        tallest = tallest.max(*histogram.iter().max().unwrap());
-        println!("Histogram: {histogram:?}");
+        // tallest = tallest.max(*histogram.iter().max().unwrap());
+        // println!("Histogram: {histogram:?}");
 
         // Now... we need text + histogram -> glyph :/
         // Let us start by pruning the left zeros.
 
         text_histogram.push((img.text.clone(), histogram, name));
-
-        // glyph_set.entries.push(Glyph::new(&sub_img_histogram, &format!("{c}")));
     }
 
     fn splitter(
@@ -226,21 +221,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Do this pretty print.
-    let mut v = s.iter().collect::<Vec<_>>();
-    v.sort();
-    for (c, entries) in v.iter() {
+    let mut glyph_histograms = s.iter().collect::<Vec<_>>();
+    glyph_histograms.sort();
+    for (c, entries) in glyph_histograms.iter() {
         println!("char: {c:?}");
         for entry in entries.iter() {
             println!("  {} {:?}", entry.name, entry.stripped_hist);
         }
     }
     println!("---");
-    let mut v = bearing_info.iter().collect::<Vec<_>>();
-    v.sort();
-    for (c, entries) in v.iter() {
+    let mut bearings = bearing_info.iter().collect::<Vec<_>>();
+    bearings.sort();
+    for (c, entries) in bearings.iter() {
         println!("bearing: {c:?}");
         for (d, name) in entries.iter() {
             println!("  {} {:?}", d, name);
+        }
+    }
+
+    let mut glyph_set: GlyphSet = Default::default();
+    let mut tallest = 0;
+
+    for (c, entries) in glyph_histograms.iter() {
+        let mut annotated: std::collections::HashMap<&Vec<u8>, &String> = Default::default();
+        for z in entries.iter() {
+            tallest = tallest.max(*z.stripped_hist.iter().max().unwrap_or(&0));
+            annotated.insert(&z.stripped_hist, &z.name);
+        }
+        for (hist, name) in &annotated {
+            if annotated.len() == 1 {
+                glyph_set.entries.push(Glyph::new(&hist, &format!("{c}")));
+            } else {
+                println!("Ambiguity for char {c:?}, from {name}");
+                glyph_set
+                    .entries
+                    .push(Glyph::new(&hist, &format!("{c}_{name}")));
+            }
         }
     }
 
