@@ -124,11 +124,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[derive(Default, Debug, Ord, Eq, PartialEq, PartialOrd)]
     struct AnalysedGlyph {
         stripped_hist: Vec<u8>,
-        left_dist: Option<(usize, char)>,
-        right_dist: Option<(usize, char)>,
         name: String,
     }
+
+    // For the white space / bearing we need to do some grouping, but we cannot observe the space
+    // itself.
+    /* Consider the letter A and R, with a space in between:
+
+          ^        |)
+         /_\       |\
+        /   \______| \
+        < c >< l  ><d>
+
+        let c be the width of A
+        l contains both the right side bearing of A, as well as the left side bearing of R.
+
+        If we obtain R right of something else, and A left of something else, we may be able to
+        determine the bearing from that, then we can subtract those with l and obtain the width
+        of the space character.
+    */
+
     let mut s: std::collections::HashMap<char, Vec<AnalysedGlyph>> = Default::default();
+    let mut bearing_info: std::collections::HashMap<String, Vec<(usize, String)>> =
+        Default::default();
+
     for (text, histogram, name) in text_histogram {
         let intervals = splitter(&histogram);
         println!("histogram: {histogram:?}");
@@ -143,11 +162,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             };
             let interval = &intervals[interval_pos];
-            if interval_pos != 0 {
-                ag.left_dist = Some((interval.0 - intervals[interval_pos - 1].1, chars[ci - 1]));
+            // collect left bearing.
+            if *c != ' ' && interval_pos != 0 && ci != 0 {
+                let mut left_bearing_start = ci - 1;
+                // Walk backwards through the spaces in the string at the current position.
+                while left_bearing_start != 0 && chars[left_bearing_start] == ' ' {
+                    left_bearing_start -= 1;
+                }
+                let left_bearing_str = (left_bearing_start..=ci)
+                    .map(|i| chars[i])
+                    .collect::<String>();
+                let v = bearing_info.entry(left_bearing_str.clone()).or_default();
+                let distance = interval.0 - intervals[interval_pos - 1].1;
+                v.push((distance, name.clone()));
             }
-            if (interval_pos + 1) < intervals.len() {
-                ag.right_dist = Some((intervals[interval_pos + 1].0 - interval.1, chars[ci + 1]));
+            // collect right bearing.
+            if *c != ' ' && (interval_pos + 1) < intervals.len() && (ci + 1) < chars.len() {
+                let mut right_bearing_start = ci + 1;
+                // Walk backwards through the spaces in the string at the current position.
+                while right_bearing_start < chars.len() && chars[right_bearing_start] == ' ' {
+                    right_bearing_start += 1;
+                }
+                let right_bearing_str = (ci..=right_bearing_start)
+                    .map(|i| chars[i])
+                    .collect::<String>();
+                let v = bearing_info.entry(right_bearing_str.clone()).or_default();
+                let distance = intervals[interval_pos + 1].0 - interval.1;
+                v.push((distance, name.clone()));
             }
             if *c == ' ' {
                 // Space will not be in the intervals, so don't populate the histogram and
@@ -160,15 +201,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Do this pretty print.
     let mut v = s.iter().collect::<Vec<_>>();
     v.sort();
     for (c, entries) in v.iter() {
-        println!("c: {c:?}");
+        println!("char: {c:?}");
         for entry in entries.iter() {
-            println!(
-                "  {} {:?} {:?} {:?}",
-                entry.name, entry.stripped_hist, entry.left_dist, entry.right_dist
-            );
+            println!("  {} {:?}", entry.name, entry.stripped_hist);
+        }
+    }
+    println!("---");
+    let mut v = bearing_info.iter().collect::<Vec<_>>();
+    v.sort();
+    for (c, entries) in v.iter() {
+        println!("bearing: {c:?}");
+        for (d, name) in entries.iter() {
+            println!("  {} {:?}", d, name);
         }
     }
 
