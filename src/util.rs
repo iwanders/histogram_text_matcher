@@ -1,5 +1,5 @@
 use crate::Match2D;
-use image::Pixel;
+use image::{GenericImageView, Pixel};
 use std::path::Path;
 /// Function to render an html page for inspecting matches.
 pub fn write_match_html<'a>(
@@ -189,7 +189,10 @@ pub fn write_match_html<'a>(
     Ok(())
 }
 
-pub fn image_as_svg(image: &dyn crate::interface::Image, width: u32, height: u32) -> String {
+pub fn image_as_svg<I: image::GenericImageView>(image: &I, width: u32, height: u32) -> String
+where
+    <<I as GenericImageView>::Pixel as Pixel>::Subpixel: std::fmt::Display,
+{
     let mut c: String = String::new();
     let image_width = image.width();
     let image_height = image.height();
@@ -200,7 +203,7 @@ pub fn image_as_svg(image: &dyn crate::interface::Image, width: u32, height: u32
     ));
     for y in 0..image.height() {
         for x in 0..image.width() {
-            let color = image.pixel(x, y);
+            let color = image.get_pixel(x, y);
             c.push_str(&format!(
                 r#"<rect style="fill:rgb({r},{g},{b});" shape-rendering="crispEdges"
                     width="1"
@@ -209,9 +212,9 @@ pub fn image_as_svg(image: &dyn crate::interface::Image, width: u32, height: u32
                     y="{y}"
                 />
                 "#,
-                r = color.r,
-                g = color.g,
-                b = color.b
+                r = color.channels()[0],
+                g = color.channels()[1],
+                b = color.channels()[2]
             ));
         }
     }

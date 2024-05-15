@@ -13,16 +13,6 @@ use crate::glyphs::{Glyph, GlyphSet};
 
 pub use crate::SimpleHistogram as Histogram;
 
-impl From<&Rgb<u8>> for crate::RGB {
-    fn from(v: &Rgb<u8>) -> Self {
-        return crate::RGB {
-            r: v[0],
-            g: v[1],
-            b: v[2],
-        };
-    }
-}
-
 pub fn filter_white(image: &RgbImage) -> RgbImage {
     let white = Rgb([255u8, 255u8, 255u8]);
     filter_colors(image, &vec![white])
@@ -293,48 +283,4 @@ pub fn dev_image_to_glyph_set(
 
     result.prepare();
     result
-}
-
-/// Wrap an `crate::ImageBufferView` around the data in the `image::RgbImage`.
-pub fn rgb_image_to_view(image: &RgbImage) -> crate::ImageBufferView<[u8], 3> {
-    crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw())
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_image_buffer_view() -> Result<(), Box<dyn std::error::Error>> {
-        let image = imageproc::utils::rgb_bench_image(512, 512);
-        let z = crate::image_buffer_view_rgb(image.width(), image.height(), image.as_raw()); // reference
-        let img_ref = crate::ImageBufferView::<[u8], 3>::from_raw_ref(
-            image.width(),
-            image.height(),
-            &image.as_raw(),
-        ); // reference
-        let img_copy = crate::ImageBufferView::<Vec<u8>, 3>::from_raw_ref(
-            image.width(),
-            image.height(),
-            &image.as_raw(),
-        ); // copy
-        use crate::Image;
-        for y in 0..image.height() {
-            for x in 0..image.width() {
-                let p = z.pixel(x, y);
-                let px = img_ref.pixel(x, y);
-                let py = img_copy.pixel(x, y);
-                assert_eq!(p, px);
-                assert_eq!(p, py);
-            }
-        }
-        let p = z.pixel(23, 55);
-        let px = img_ref.pixel(23, 55);
-        let py = img_copy.pixel(23, 55);
-        println!("{p:?}");
-        println!("{px:?}");
-        println!("{py:?}");
-        // x + 3
-        // z + 3
-        // y + 3
-        Ok(())
-    }
 }

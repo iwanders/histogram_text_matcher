@@ -10,8 +10,8 @@
 
 pub mod glyphs;
 
-mod interface;
-pub use interface::*;
+// mod interface;
+// pub use interface::*;
 
 use image::{GenericImageView, Pixel, Rgb};
 
@@ -777,10 +777,15 @@ mod tests {
     #[test]
     fn test_histogram_glyph_matcher() {
         let rgb_image = render_standard_alphabet();
-        let image = image_support::rgb_image_to_view(&rgb_image);
-        let hist = image_to_simple_histogram(&image, RGB::white());
-        let mut glyph_set =
-            image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &vec![RGB::white()], &None);
+        let image = &rgb_image;
+        // let image = image_support::rgb_image_to_view(&rgb_image);
+        let hist = image_to_simple_histogram(image, Rgb::<u8>([255, 255, 255]));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(
+            &rgb_image,
+            Some(0),
+            &vec![Rgb::<u8>([255, 255, 255])],
+            &None,
+        );
         glyph_set.prepare();
 
         println!("Histogram: {hist:?}");
@@ -797,10 +802,14 @@ mod tests {
     #[test]
     fn test_bin_glyph_matcher() {
         let rgb_image = render_standard_alphabet();
-        let image = image_support::rgb_image_to_view(&rgb_image);
-        let hist = image_to_simple_histogram(&image, RGB::white());
-        let mut glyph_set =
-            image_support::dev_image_to_glyph_set(&rgb_image, Some(0), &vec![RGB::white()], &None);
+        let image = &rgb_image;
+        let hist = image_to_simple_histogram(image, Rgb::<u8>([255, 255, 255]));
+        let mut glyph_set = image_support::dev_image_to_glyph_set(
+            &rgb_image,
+            Some(0),
+            &vec![Rgb::<u8>([255, 255, 255])],
+            &None,
+        );
         glyph_set.prepare();
         let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
@@ -840,7 +849,7 @@ mod tests {
         let mut glyph_set = image_support::dev_image_to_glyph_set(
             &glyph_image,
             Some(0),
-            &vec![RGB::white()],
+            &vec![Rgb::<u8>([255, 255, 255])],
             &None,
         );
         // Patch up the glyph set's glyphs.
@@ -856,17 +865,17 @@ mod tests {
         // offset line alignments.
         let mut image = RgbImage::new(200, 100);
 
-        let white = RGB::white();
-        let red = RGB::red();
-        let blue = RGB::blue();
+        let white = Rgb::<u8>([255, 255, 255]);
+        let red = Rgb::<u8>([255, 0, 0]);
+        let blue = Rgb::<u8>([0, 0, 255]);
 
         let locations = [
-            (10u32, 10u32, "caab", red.to_rgb()),
-            (50, 13, "deeb", white.to_rgb()),
-            (100u32, 10u32, "waab", blue.to_rgb()),
-            (150, 13, "wacb", white.to_rgb()),
-            (50, 20, "dwaaaaaa", red.to_rgb()), // Touches the other DEEB.
-            (10u32, 50u32, "cba", blue.to_rgb()),
+            (10u32, 10u32, "caab", red),
+            (50, 13, "deeb", white),
+            (100u32, 10u32, "waab", blue),
+            (150, 13, "wacb", white),
+            (50, 20, "dwaaaaaa", red), // Touches the other DEEB.
+            (10u32, 50u32, "cba", blue),
         ];
 
         for (x, y, text, color) in locations.iter() {
@@ -877,10 +886,10 @@ mod tests {
             let _ = image.save(location.to_owned() + "input_image.png").unwrap();
         }
 
-        let image = image_support::rgb_image_to_view(&image);
+        let image = &image;
         let labels = vec![(white, 0), (red, 1), (blue, 2)];
 
-        let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
+        let matches = moving_windowed_histogram(image, glyph_set.line_height, &matcher, &labels);
 
         if have_dir {
             util::write_match_html(
@@ -1131,7 +1140,7 @@ mod tests {
             let mut glyph_set = image_support::dev_image_to_glyph_set(
                 &original_image,
                 Some(0),
-                &vec![RGB::white()],
+                &vec![Rgb::<u8>([255, 255, 255])],
                 &None,
             );
             glyph_set.entries[0] = glyphs::Glyph::new(glyph_set.entries[0].hist(), &"a");
@@ -1154,7 +1163,7 @@ mod tests {
         let glyph_set = image_support::dev_image_to_glyph_set(
             &image,
             Some(0),
-            &vec![RGB::white()],
+            &vec![Rgb::<u8>([255, 255, 255])],
             &output_dir,
         );
 
@@ -1165,10 +1174,10 @@ mod tests {
         let mut image_mut = image.clone();
 
         let matcher = matcher::LongestGlyphMatcher::new(&glyph_set.entries);
-        let image = image_support::rgb_image_to_view(&scaled_readme_glyphs);
-        let labels = vec![(RGB::white(), 0)];
+        let image = &scaled_readme_glyphs;
+        let labels = vec![(Rgb::<u8>([255, 255, 255]), 0)];
 
-        let matches = moving_windowed_histogram(&image, glyph_set.line_height, &matcher, &labels);
+        let matches = moving_windowed_histogram(image, glyph_set.line_height, &matcher, &labels);
 
         // We should draw a grid here.
         let bottom = 26 * scale_factor;
