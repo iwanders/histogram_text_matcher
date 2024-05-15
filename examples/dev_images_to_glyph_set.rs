@@ -1,8 +1,8 @@
-use histogram_text_matcher::glyphs::{Glyph, GlyphSet};
+use histogram_text_matcher::glyphs::GlyphSet;
 use histogram_text_matcher::image_support::image_to_histogram;
-use histogram_text_matcher::{Rect, RGB};
+use histogram_text_matcher::Rect;
 use image::open;
-use image::{GenericImageView, Rgb, RgbImage};
+use image::{GenericImageView, Rgb};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
@@ -29,7 +29,7 @@ fn load_collection(input_path: &Path) -> Result<Collection, Box<dyn std::error::
 
     let extension = input_path.extension().expect("should have an extension");
 
-    let mut p: Collection;
+    let p: Collection;
     if extension == "json" {
         p = serde_json::from_str(&content)?;
     } else if extension == "yaml" {
@@ -121,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         v
     }
     // Now, we need to do smarts with the matches... slice them, then add them to the glyph set.
-    #[derive(Default, Debug)]
+    #[derive(Default, Debug, Ord, Eq, PartialEq, PartialOrd)]
     struct AnalysedGlyph {
         stripped_hist: Vec<u8>,
         left_dist: Option<(usize, char)>,
@@ -136,9 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut interval_pos = 0;
         let chars = text.chars().collect::<Vec<char>>();
         for (ci, c) in chars.iter().enumerate() {
-            let mut v = s.entry(*c).or_default();
-
-            // We can always populate this.
+            let v = s.entry(*c).or_default();
             let mut ag = AnalysedGlyph {
                 name: name.clone(),
                 stripped_hist: vec![],
@@ -152,8 +150,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ag.right_dist = Some((intervals[interval_pos + 1].0 - interval.1, chars[ci + 1]));
             }
             if *c == ' ' {
-                // Space will not be in the intervals, but we do know its size will be between
-                // the interval left of current and right of current.
+                // Space will not be in the intervals, so don't populate the histogram and
+                // don't advance the interval position.
             } else {
                 ag.stripped_hist = histogram[interval.0..interval.1].to_vec();
                 interval_pos += 1;
@@ -161,7 +159,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             v.push(ag);
         }
     }
-    for (c, entries) in s.iter() {
+
+    let mut v = s.iter().collect::<Vec<_>>();
+    v.sort();
+    for (c, entries) in v.iter() {
         println!("c: {c:?}");
         for entry in entries.iter() {
             println!(

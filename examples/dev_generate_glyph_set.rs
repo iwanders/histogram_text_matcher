@@ -50,8 +50,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scalefont = font.as_scaled(scale);
 
     let glyph_height = scalefont.height();
-    let glyph_descent = scalefont.descent();
-    let glyph_ascent = scalefont.ascent();
+    // let glyph_descent = scalefont.descent();
+    // let glyph_ascent = scalefont.ascent();
 
     let mut glyph_set: GlyphSet = Default::default();
 
