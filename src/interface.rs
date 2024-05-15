@@ -44,7 +44,6 @@ impl RGB {
         RGB { r: 0, g: 0, b: 255 }
     }
 
-
     pub fn to_rgb(&self) -> image::Rgb<u8> {
         image::Rgb([self.r, self.g, self.b])
     }

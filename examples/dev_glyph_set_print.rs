@@ -1,6 +1,6 @@
+use ab_glyph::{FontVec, PxScale};
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;
-use ab_glyph::{FontVec, PxScale};
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,7 +22,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let font = FontVec::try_from_vec(data).unwrap_or_else(|_| {
         panic!("error constructing a Font from data at {:?}", font_path);
     });
-
 
     let height = 10.0;
     let scale = PxScale::from(height);
