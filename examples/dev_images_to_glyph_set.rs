@@ -54,6 +54,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("c: {collection:#?}");
     let mut text_histogram = vec![];
 
+    let mut tallest = 0;
+
     for (i, img) in collection.images.iter().enumerate() {
         let final_path = if let Some(v) = collection.base_dir.as_ref() {
             let mut z = PathBuf::from(v);
@@ -82,16 +84,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Next, we filter the image to mask it with the color of interest.
         let mut masked_img = roi_img.clone();
-        for p in masked_img.pixels_mut() {
+        let mut lowest_y = 100000000;
+        let mut heighest_y = 0;
+        for (_x, y, p) in masked_img.enumerate_pixels_mut() {
             if *p == Rgb([img.color.0, img.color.1, img.color.2]) {
                 *p = Rgb([255u8, 255u8, 255u8]);
+                lowest_y = lowest_y.min(y);
+                heighest_y = heighest_y.max(y);
             } else {
                 *p = Rgb([0u8, 0u8, 0u8]);
             }
         }
+        tallest = heighest_y - lowest_y + 1;
         masked_img.save(format!("/tmp/{name}_{i}_masked.png"))?;
 
         let sub_img_gray = image::DynamicImage::ImageRgb8(masked_img).into_luma8();
+
         let histogram = image_to_histogram(&sub_img_gray);
         sub_img_gray.save(format!("/tmp/{name}_{i}_gray.png"))?;
         // tallest = tallest.max(*histogram.iter().max().unwrap());
@@ -240,24 +248,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut glyph_set: GlyphSet = Default::default();
-    let mut tallest = 0;
-
     println!("Outputting glyph set");
     for (c, entries) in glyph_histograms.iter() {
+        if **c == ' ' {
+            continue; // this is a footgun, the matcher recurses.
+        }
         let mut annotated: std::collections::HashMap<&Vec<u8>, &String> = Default::default();
         for z in entries.iter() {
-            tallest = tallest.max(*z.stripped_hist.iter().max().unwrap_or(&0));
+            // tallest = tallest.max(*z.stripped_hist.iter().max().unwrap_or(&0));
             annotated.insert(&z.stripped_hist, &z.name);
         }
         for (hist, name) in &annotated {
+            let mut padded_hist = (*hist).clone();
+            padded_hist.insert(0, 0);
+            padded_hist.push(0);
             if annotated.len() == 1 {
-                println!("Data agrees for {c:?}   {hist:?}  hits: {}", entries.len());
-                glyph_set.entries.push(Glyph::new(&hist, &format!("{c}")));
+                println!(
+                    "Data agrees for {c:?}   {padded_hist:?}  hits: {}",
+                    entries.len()
+                );
+                glyph_set
+                    .entries
+                    .push(Glyph::new(&padded_hist, &format!("{c}")));
             } else {
                 println!("Ambiguity for char {c:?}, from {name}");
                 glyph_set
                     .entries
-                    .push(Glyph::new(&hist, &format!("{c}_{name}")));
+                    .push(Glyph::new(&padded_hist, &format!("{c}_{name}")));
             }
         }
     }
