@@ -1,13 +1,14 @@
 //! Functionality for the image_support feature
 use image::imageops::colorops::grayscale;
-use image::{Rgb, RgbImage};
+use image::{Rgb, RgbImage, GenericImage};
 use imageproc::map::map_colors;
 use imageproc::rect::Rect;
+use imageproc::drawing::{Canvas, Blend};
 
 use std::path::Path;
 
 use imageproc::drawing::draw_text_mut;
-use rusttype::{Font, Scale};
+use ab_glyph::{Font, PxScale};
 
 use crate::glyphs::{Glyph, GlyphSet};
 
@@ -134,17 +135,15 @@ pub fn image_to_histogram(image: &image::GrayImage) -> Histogram {
     hist
 }
 
-pub fn render_font_image(
+pub fn render_font_image<F: Font>(
     canvas: (u32, u32),
-    font: &Font,
+    font: &F,
     fontsize: f32,
-    elements: &[((u32, u32), String, Rgb<u8>)],
+    elements: &[((i32, i32), String, Rgb<u8>)],
 ) -> RgbImage {
     let mut image = RgbImage::new(canvas.0, canvas.1);
-    let scale = Scale {
-        x: fontsize,
-        y: fontsize,
-    };
+    let scale = PxScale::from(fontsize);
+
 
     for ((x, y), s, c) in elements.iter() {
         draw_text_mut(&mut image, *c, *x, *y, scale, font, s);
@@ -273,14 +272,12 @@ pub fn dev_image_to_glyph_set(
                 image::DynamicImage::ImageRgb8(filtered_token.to_image()).into_luma8();
             let sub_img_histogram = image_to_histogram(&sub_img_gray);
 
-            let mut drawable = image::GenericImage::sub_image(
-                &mut image_with_rect,
+            let mut drawable = image_with_rect.sub_image(
                 b.left() as u32,
                 b.top() as u32,
                 b.width(),
-                b.height(),
-            );
-            imageproc::drawing::draw_hollow_rect_mut(&mut drawable, *z, Rgb([0u8, 255u8, 255u8]));
+                b.height());
+            imageproc::drawing::draw_hollow_rect_mut(&mut *drawable, *z, Rgb([0u8, 255u8, 255u8]));
             draw_histogram_mut_xy_a(
                 &mut image_with_rect,
                 z.left() as u32,

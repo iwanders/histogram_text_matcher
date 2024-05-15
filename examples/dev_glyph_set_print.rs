@@ -1,6 +1,6 @@
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_text_mut;
-use rusttype::{Font, Scale};
+use ab_glyph::{Font, FontVec, PxScale};
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,21 +12,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&PathBuf::from(&file_path))?;
     let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
-    let line_offset: u32 = 10;
-    let line_height = glyph_set.line_height as u32 + line_offset;
+    let line_offset = 10;
+    let line_height = glyph_set.line_height as i32 + line_offset;
 
-    let mut image = RgbImage::new(100, glyph_set.entries.len() as u32 * line_height);
+    let mut image = RgbImage::new(100, glyph_set.entries.len() as u32 * line_height as u32);
 
-    let font = std::fs::read("/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf")?;
-    let font = Font::try_from_vec(font).unwrap();
+    let font_path = "/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf";
+    let data = std::fs::read(font_path)?;
+    let font = FontVec::try_from_vec(data).unwrap_or_else(|_| {
+        panic!("error constructing a Font from data at {:?}", font_path);
+    });
+
 
     let height = 10.0;
-    let scale = Scale {
-        x: height,
-        y: height,
-    };
+    let scale = PxScale::from(height);
     for (i, g) in glyph_set.entries.iter().enumerate() {
-        let y = i as u32 * line_height;
+        let y = i as i32 * line_height;
         draw_text_mut(
             &mut image,
             Rgb([255u8, 255u8, 255u8]),
@@ -39,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         histogram_text_matcher::image_support::draw_histogram_mut_xy_a(
             &mut image,
             10,
-            y + (glyph_set.line_height as u32 / 2),
+            y as u32 + (glyph_set.line_height as u32 / 2),
             &g.hist(),
             Rgb([255u8, 255u8, 0u8]),
             1.0,
