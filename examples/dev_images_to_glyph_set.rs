@@ -18,6 +18,8 @@ struct AnnotatedImage {
 struct Collection {
     base_dir: Option<String>,
     images: Vec<AnnotatedImage>,
+    // If letters fall apart into two intervals... we can express for each char how many intervals it spans here.
+    char_intervals: std::collections::HashMap<char, usize>,
 }
 
 fn load_collection(input_path: &Path) -> Result<Collection, Box<dyn std::error::Error>> {
@@ -55,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut text_histogram = vec![];
 
-    for img in collection.images.iter() {
+    for (i, img) in collection.images.iter().enumerate() {
         let final_path = if let Some(v) = collection.base_dir.as_ref() {
             let mut z = PathBuf::from(v);
             z.push(img.file_path.clone());
@@ -79,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let roi_img = image
             .view(img.roi.x, img.roi.y, img.roi.w, img.roi.h)
             .to_image();
-        roi_img.save(format!("/tmp/{name}_roi.png"))?;
+        roi_img.save(format!("/tmp/{name}_{i}_roi.png"))?;
 
         // Next, we filter the image to mask it with the color of interest.
         let mut masked_img = roi_img.clone();
@@ -90,11 +92,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 *p = Rgb([0u8, 0u8, 0u8]);
             }
         }
-        masked_img.save(format!("/tmp/{name}_masked.png"))?;
+        masked_img.save(format!("/tmp/{name}_{i}_masked.png"))?;
 
         let sub_img_gray = image::DynamicImage::ImageRgb8(masked_img).into_luma8();
         let histogram = image_to_histogram(&sub_img_gray);
-        sub_img_gray.save(format!("/tmp/{name}_gray.png"))?;
+        sub_img_gray.save(format!("/tmp/{name}_{i}_gray.png"))?;
         tallest = tallest.max(*histogram.iter().max().unwrap());
         println!("Histogram: {histogram:?}");
 
@@ -106,16 +108,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // glyph_set.entries.push(Glyph::new(&sub_img_histogram, &format!("{c}")));
     }
 
-    fn splitter(hist: &[u8]) -> Vec<(usize, usize)> {
+    fn splitter(
+        hist: &[u8],
+        chars: &[char],
+        intervals: &std::collections::HashMap<char, usize>,
+    ) -> Vec<(usize, usize)> {
         let mut v = vec![];
+        let mut letter_start = None;
         let mut s = None;
+        let mut ci = 0;
         // skip peeking to ensure max step for now.
+        let mut intervals_this_letter = intervals.get(&chars[ci]).cloned().unwrap_or(1);
+        // println!("intervals_this_letter: {intervals_this_letter:?} for {:?}", chars[ci]);
         for (i, a) in hist.iter().enumerate() {
+            // println!("i: {i} hist val: {a}, s: {s:?}");
             if *a == 0 && s.is_some() {
-                v.push((s.take().unwrap(), i));
+                intervals_this_letter -= 1;
+                if intervals_this_letter == 0 {
+                    v.push((letter_start.take().unwrap(), i));
+                    ci += 1;
+                    s = None;
+                    intervals_this_letter = intervals.get(&chars[ci]).cloned().unwrap_or(1);
+                    // println!("intervals_this_letter: {intervals_this_letter:?} for {:?}", chars[ci]);
+                } else {
+                    s = None;
+                    // println!("Keepings: {letter_start:?} for {:?} at {i} with a {a}", chars[ci]);
+                }
             }
             if *a != 0 && s.is_none() {
                 s = Some(i);
+                if letter_start.is_none() {
+                    letter_start = Some(i);
+                }
             }
         }
         v
@@ -149,11 +173,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Default::default();
 
     for (text, histogram, name) in text_histogram {
-        let intervals = splitter(&histogram);
-        println!("histogram: {histogram:?}");
-        println!("intervals: {intervals:?}");
         let mut interval_pos = 0;
         let chars = text.chars().collect::<Vec<char>>();
+        let intervals = splitter(&histogram, &chars, &collection.char_intervals);
+        println!("histogram: {histogram:?}");
+        println!("intervals: {intervals:?}");
         for (ci, c) in chars.iter().enumerate() {
             let v = s.entry(*c).or_default();
             let mut ag = AnalysedGlyph {
