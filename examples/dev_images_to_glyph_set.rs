@@ -242,6 +242,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut glyph_set: GlyphSet = Default::default();
     let mut tallest = 0;
 
+    println!("Outputting glyph set");
     for (c, entries) in glyph_histograms.iter() {
         let mut annotated: std::collections::HashMap<&Vec<u8>, &String> = Default::default();
         for z in entries.iter() {
@@ -250,6 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         for (hist, name) in &annotated {
             if annotated.len() == 1 {
+                println!("Data agrees for {c:?}   {hist:?}  hits: {}", entries.len());
                 glyph_set.entries.push(Glyph::new(&hist, &format!("{c}")));
             } else {
                 println!("Ambiguity for char {c:?}, from {name}");
