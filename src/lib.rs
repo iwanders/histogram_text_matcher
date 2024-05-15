@@ -13,6 +13,8 @@ pub mod glyphs;
 mod interface;
 pub use interface::*;
 
+use image::{GenericImageView, Pixel, Rgb};
+
 pub mod matcher;
 
 pub mod util;
@@ -39,12 +41,15 @@ pub mod test_util;
 */
 
 /// Function to match a single color in an image and convert this to a histogram.
-pub fn image_to_simple_histogram(image: &dyn Image, color: RGB) -> SimpleHistogram {
+pub fn image_to_simple_histogram<I: GenericImageView>(image: &I, color: I::Pixel) -> SimpleHistogram
+where
+    I::Pixel: Eq,
+{
     let mut res: SimpleHistogram = SimpleHistogram::new();
     res.resize(image.width() as usize, 0);
     for y in 0..image.height() {
         for x in 0..image.width() {
-            res[x as usize] += if image.pixel(x, y) == color { 1 } else { 0 };
+            res[x as usize] += if image.get_pixel(x, y) == color { 1 } else { 0 };
         }
     }
     res
@@ -141,7 +146,7 @@ impl Bin {
 }
 
 /// Relate a particular color to a label.
-pub type ColorLabel = (RGB, u32);
+pub type ColorLabel = (Rgb<u8>, u32);
 
 /// A glyph with an associated label.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
@@ -408,9 +413,15 @@ impl Rect {
 use std::collections::VecDeque;
 
 // Helper to add a row to the histogram.
-fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut [Bin]) {
+fn add_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histogram: &mut [Bin])
+where
+    u8: PartialEq<<P as Pixel>::Subpixel>,
+{
     for (color, label) in labels.iter() {
-        if color == p {
+        if color.0[0] == p.channels()[0]
+            && color.0[1] == p.channels()[1]
+            && color.0[2] == p.channels()[2]
+        {
             histogram[x].count += 1;
             histogram[x].label = *label;
             return;
@@ -419,9 +430,15 @@ fn add_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut [Bin]) {
 }
 
 // Helper to subtract a row from the histogram.
-fn sub_pixel(x: usize, p: &RGB, labels: &[ColorLabel], histogram: &mut [Bin]) {
+fn sub_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histogram: &mut [Bin])
+where
+    u8: PartialEq<<P as Pixel>::Subpixel>,
+{
     for (color, _label) in labels.iter() {
-        if color == p {
+        if color.0[0] == p.channels()[0]
+            && color.0[1] == p.channels()[1]
+            && color.0[2] == p.channels()[2]
+        {
             histogram[x].count = histogram[x].count.saturating_sub(1);
             return;
         }
@@ -612,26 +629,29 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
 }
 
 /// Create an iterator that generates histogram lines.
-pub struct WindowHistogramIterator<'a, 'b> {
-    image: &'b dyn Image,
+pub struct WindowHistogramIterator<'a, 'b, I: GenericImageView> {
+    image: &'b I,
     histogram: Vec<Bin>,
     y: u32,
     labels: &'a [ColorLabel],
     window_size: u32,
 }
 
-impl<'a, 'b> WindowHistogramIterator<'a, 'b> {
+impl<'a, 'b, I: GenericImageView> WindowHistogramIterator<'a, 'b, I>
+where
+    u8: PartialEq<<<I as GenericImageView>::Pixel as Pixel>::Subpixel>,
+{
     /// Construct a new sliding window histogram iterator, this creates the initial histogram state.
     pub fn new(
-        image: &'b dyn Image,
+        image: &'b I,
         labels: &'a [ColorLabel],
         window_size: u32,
-    ) -> WindowHistogramIterator<'a, 'b> {
+    ) -> WindowHistogramIterator<'a, 'b, I> {
         let mut histogram: Vec<Bin> = Vec::new();
         histogram.resize(image.width() as usize, Default::default());
         for y in 0..window_size {
             for x in 0..image.width() {
-                let p = image.pixel(x, y);
+                let p = image.get_pixel(x, y);
                 add_pixel(x as usize, &p, labels, &mut histogram);
             }
         }
@@ -664,7 +684,10 @@ impl WindowHistogram {
 }
 
 /// Iterator implementation.
-impl<'a, 'b> Iterator for WindowHistogramIterator<'a, 'b> {
+impl<'a, 'b, I: GenericImageView> Iterator for WindowHistogramIterator<'a, 'b, I>
+where
+    u8: PartialEq<<<I as GenericImageView>::Pixel as Pixel>::Subpixel>,
+{
     type Item = WindowHistogram;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -677,13 +700,13 @@ impl<'a, 'b> Iterator for WindowHistogramIterator<'a, 'b> {
         if self.y < ((self.image.height() - self.window_size) as u32) {
             // Then update the window
             for x in 0..self.image.width() {
-                let p = self.image.pixel(x, self.y);
+                let p = self.image.get_pixel(x, self.y);
                 sub_pixel(x as usize, &p, self.labels, &mut self.histogram);
             }
 
             // Add the side moving into the histogram.
             for x in 0..self.image.width() {
-                let p = self.image.pixel(x, self.y + self.window_size);
+                let p = self.image.get_pixel(x, self.y + self.window_size);
                 add_pixel(x as usize, &p, self.labels, &mut self.histogram);
             }
             self.y += 1;
@@ -696,12 +719,15 @@ impl<'a, 'b> Iterator for WindowHistogramIterator<'a, 'b> {
 }
 
 /// Function to slide a window over an image and match glyphs for each histogram thats created.
-pub fn moving_windowed_histogram<'a>(
-    image: &dyn Image,
+pub fn moving_windowed_histogram<'a, I: GenericImageView>(
+    image: &I,
     window_size: u32,
     matcher: &'a dyn Matcher,
     labels: &[ColorLabel],
-) -> Vec<Match2D<'a>> {
+) -> Vec<Match2D<'a>>
+where
+    u8: PartialEq<<<I as GenericImageView>::Pixel as Pixel>::Subpixel>,
+{
     let mut res_final: Vec<Match2D<'a>> = Vec::new();
 
     // Container for results under consideration, we check matches against overlap in this window

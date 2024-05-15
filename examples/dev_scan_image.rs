@@ -49,7 +49,8 @@ fn main() {
         output_file = String::from("/tmp/") + &filename.replace(old_ext, "html");
     }
 
-    let image = histogram_text_matcher::image_support::rgb_image_to_view(&orig_image);
+    // let image = histogram_text_matcher::image_support::rgb_image_to_view(&orig_image);
+    let image = orig_image;
 
     let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
@@ -74,8 +75,8 @@ fn main() {
 
     use std::fs;
     histogram_text_matcher::util::write_match_html(
-        orig_image.width(),
-        orig_image.height(),
+        image.width(),
+        image.height(),
         &matches,
         &labels,
         &fs::canonicalize(image_path).expect("can be made absolute"),

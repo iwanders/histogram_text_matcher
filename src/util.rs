@@ -1,7 +1,6 @@
 use crate::Match2D;
-use crate::RGB;
+use image::Pixel;
 use std::path::Path;
-
 /// Function to render an html page for inspecting matches.
 pub fn write_match_html<'a>(
     width: u32,
@@ -163,9 +162,9 @@ pub fn write_match_html<'a>(
             }}
             ",
             l = label,
-            r = c.r,
-            g = c.g,
-            b = c.b
+            r = c.channels()[0],
+            g = c.channels()[1],
+            b = c.channels()[2]
         ));
     }
 
@@ -220,11 +219,11 @@ pub fn image_as_svg(image: &dyn crate::interface::Image, width: u32, height: u32
     c
 }
 
-pub fn parse_json_labels(data: &str) -> serde_json::Result<Vec<(RGB, u32)>> {
-    let mut res: Vec<(RGB, u32)> = vec![];
+pub fn parse_json_labels(data: &str) -> serde_json::Result<Vec<(image::Rgb<u8>, u32)>> {
+    let mut res: Vec<(image::Rgb<u8>, u32)> = vec![];
     let v: Vec<(u8, u8, u8, u32)> = serde_json::from_str(data)?;
     for r in v {
-        res.push((RGB::rgb(r.0, r.1, r.2), r.3));
+        res.push((image::Rgb::<u8>([r.0, r.1, r.2]), r.3));
     }
     Ok(res)
 }

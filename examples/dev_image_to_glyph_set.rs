@@ -37,7 +37,7 @@ fn main() {
     .expect("could not parse labels")
     .iter()
     .map(|x| x.0)
-    .collect::<Vec<histogram_text_matcher::RGB>>();
+    .collect::<Vec<image::Rgb<u8>>>();
 
     let out_dir = std::env::args()
         .nth(4)

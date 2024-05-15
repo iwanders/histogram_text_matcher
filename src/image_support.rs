@@ -212,7 +212,7 @@ fn optionally_save_image(image: &RgbImage, out_dir: &Option<&str>, name: &str) {
 pub fn dev_image_to_glyph_set(
     image: &RgbImage,
     only_line: Option<usize>,
-    colors: &[crate::RGB],
+    colors: &[image::Rgb<u8>],
     out_dir: &Option<&str>,
 ) -> GlyphSet {
     let mut result: GlyphSet = Default::default();
@@ -220,7 +220,7 @@ pub fn dev_image_to_glyph_set(
     optionally_save_image(&image, out_dir, "dev_histogram_input.png");
 
     // let filtered = filter_white(image);
-    let image_colors = colors.iter().map(|x| x.to_rgb()).collect::<Vec<Rgb<u8>>>();
+    let image_colors = colors.to_vec();
     let filtered = filter_colors(image, &image_colors);
 
     optionally_save_image(&filtered, out_dir, "dev_histogram_filter_white.png");
