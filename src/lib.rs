@@ -197,9 +197,9 @@ pub struct Match<'a> {
 }
 
 /// Trait that provides glyph matching functionality.
-pub trait Matcher<'a> {
-    fn find_match(&self, histogram: &[Bin]) -> Option<&'a glyphs::Glyph>;
-    fn lstrip_find_match(&self, histogram: &[Bin]) -> Option<&'a glyphs::Glyph>;
+pub trait Matcher {
+    fn find_match(&self, histogram: &[Bin]) -> Option<&glyphs::Glyph>;
+    fn lstrip_find_match(&self, histogram: &[Bin]) -> Option<&glyphs::Glyph>;
 }
 
 // There are situation where linear - longest glyph matching is not correct;
