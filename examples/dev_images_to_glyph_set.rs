@@ -188,7 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  intervals: {intervals:?}");
         let max_found = histogram.iter().max().unwrap_or(&0);
         if *max_found == 0 {
-            panic!("Max value found in histogram is 0, probably wrong color?");
+            panic!("Max value found in histogram is 0, probably wrong color? {name:?}");
         }
         for (ci, c) in chars.iter().enumerate() {
             let v = s.entry(*c).or_default();
@@ -273,16 +273,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             padded_hist.insert(0, 0);
             padded_hist.push(0);
             if annotated.len() == 1 {
-                println!(
-                    "Data agrees for {c:?}   {padded_hist:?}  hits: {}",
-                    entries.len()
-                );
+                let hits = entries.len();
+                println!("Data agrees for {c:?}  ({hits: >3} hits)  {padded_hist:?}");
                 glyph_set
                     .entries
                     .push(Glyph::new(&padded_hist, &format!("{c}")));
             } else {
                 found_ambiguity = true;
-                println!("Ambiguity for char {c:?}, from {name}");
+                println!("Ambiguity for char {c:?}, from {name}: {hist:?}");
                 glyph_set
                     .entries
                     .push(Glyph::new(&padded_hist, &format!("{c}_{name}")));
