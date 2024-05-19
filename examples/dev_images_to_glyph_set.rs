@@ -186,6 +186,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("name: {name:?}");
         println!("  histogram: {histogram:?}");
         println!("  intervals: {intervals:?}");
+        let max_found = histogram.iter().max().unwrap_or(&0);
+        if *max_found == 0 {
+            panic!("Max value found in histogram is 0, probably wrong color?");
+        }
         for (ci, c) in chars.iter().enumerate() {
             let v = s.entry(*c).or_default();
             let mut ag = AnalysedGlyph {
@@ -254,6 +258,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut glyph_set: GlyphSet = Default::default();
     println!("Outputting glyph set");
+    let mut found_ambiguity = false;
     for (c, entries) in glyph_histograms.iter() {
         if **c == ' ' {
             continue; // this is a footgun, the matcher recurses.
@@ -276,12 +281,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .entries
                     .push(Glyph::new(&padded_hist, &format!("{c}")));
             } else {
+                found_ambiguity = true;
                 println!("Ambiguity for char {c:?}, from {name}");
                 glyph_set
                     .entries
                     .push(Glyph::new(&padded_hist, &format!("{c}_{name}")));
             }
         }
+    }
+    if found_ambiguity {
+        println!("Found some ambiguous characters");
+    } else {
+        println!("No ambiguity found");
     }
 
     glyph_set.line_height = tallest as u32;
