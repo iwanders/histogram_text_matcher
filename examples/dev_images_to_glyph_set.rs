@@ -19,6 +19,7 @@ struct Collection {
     base_dir: Option<String>,
     images: Vec<AnnotatedImage>,
     // If letters fall apart into two intervals... we can express for each char how many intervals it spans here.
+    #[serde(default)]
     char_intervals: std::collections::HashMap<char, usize>,
 }
 
@@ -131,7 +132,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     v.push((letter_start.take().unwrap(), i));
                     ci += 1;
                     s = None;
-                    intervals_this_letter = intervals.get(&chars[ci]).cloned().unwrap_or(1);
+
+                    if ci < chars.len() {
+                        intervals_this_letter = intervals.get(&chars[ci]).cloned().unwrap_or(1);
+                    }
                     // println!("intervals_this_letter: {intervals_this_letter:?} for {:?}", chars[ci]);
                 } else {
                     s = None;
@@ -179,8 +183,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut interval_pos = 0;
         let chars = text.chars().collect::<Vec<char>>();
         let intervals = splitter(&histogram, &chars, &collection.char_intervals);
-        println!("histogram: {histogram:?}");
-        println!("intervals: {intervals:?}");
+        println!("name: {name:?}");
+        println!("  histogram: {histogram:?}");
+        println!("  intervals: {intervals:?}");
         for (ci, c) in chars.iter().enumerate() {
             let v = s.entry(*c).or_default();
             let mut ag = AnalysedGlyph {
