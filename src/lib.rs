@@ -25,6 +25,7 @@ pub type SimpleHistogram = Vec<u8>;
 use serde::{Deserialize, Serialize};
 
 // This here ensures that we have image support when the feature is enabled, but also for all tests.
+#[cfg(feature = "imageproc")]
 pub mod image_support;
 
 #[cfg(test)]
