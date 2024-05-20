@@ -352,7 +352,7 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
 }
 
 /// Struct to represent a rectangle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash, Deserialize, PartialOrd)]
 pub struct Rect {
     pub x: u32,
     pub y: u32,
