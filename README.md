@@ -1,8 +1,12 @@
 # histogram_text_matcher
 
-A crate to perform histogram-based OCR on images. It was written to recognize text in a particular
-game, but it should be applicable in any scenario where the appearance of characters is independent
-of their position and the letters are an unique color that can be transformed into a histogram[^1].
+A crate to perform (blisteringly fast) histogram-based OCR on images. It was written to recognize
+text in a particular game, but it should be applicable in any scenario where the appearance of
+characters is independent of their position and the letters are an unique color that can be
+transformed into a histogram[^1].
+
+Some variation of the fonts can technically be handled by introducing more glyphs into the glyph set
+as the glyph set can contain multiple entries for one letter and a glyph can comprise two letters.
 
 This readme is mostly for myself such that I can figure out how to use this a few years
 from now.
@@ -150,6 +154,53 @@ and dummy names for each glyph. This is without the side bearing, that can be ad
 - `dev_glyph_set_print`: Renders a particular glyph set - so only the histograms.
 - `dev_scan_image`: Scan an image using the provided glyph set and output the html with matches for
 inspection.
+
+### Making glyph sets.
+Is most easily done with the 'new' `dev_images_to_glyph_set` example. This writes all its output to
+the `/tmp` directory, including the glyph file. Its input is a yaml file that holds the collection:
+
+```yaml
+# The directory to load the files from.
+base_dir: "/tmp/"
+
+# the ROI, just as a yaml reference to use later.
+_tooltip_rect: &tooltip
+  x: 674
+  y: 29
+  w: 571
+  h: 37
+
+# Whether to add zero's at the start and end of each letter, this is necessary for the 
+# histogram_glyph_matcher function, but it should not be used when using the longest glyph matcher
+# which is usually used with match_histogram_to_string.
+histogram_add_zero_start_end: false
+
+# The length of the space character, it adds a " " glyph with the appropriate properties.
+space_min_size: 11
+
+# Some letters may fall apart into two elements in the histogram, this allows specifying how many
+# segments a letter takes up.
+char_intervals:
+  P: 2
+  k: 2
+
+# Then follows a list of images.
+images:
+  -
+    # The file path relative to the base directory.
+    file_path: "Screenshot648.png"
+    # The roi
+    roi: *tooltip
+    # The text that is seen in this ROI
+    text: "Eldritch the Rectifier"
+    # The color to mask against.
+    color: [199,179,119]
+  -
+    file_path: "Screenshot601.png"
+    roi: *tooltip
+    text: "Defiled Warrior"
+    color: [255,255,255]
+```
 
 ## License
 License is `MIT OR Apache-2.0`.

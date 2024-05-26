@@ -360,6 +360,8 @@ pub fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec
 }
 
 /// Return a string as best matched from the provided histogram.
+///
+/// This is the function to use when matching a single line to a single string.
 pub fn match_histogram_to_string(histogram: &[u8], matcher: &dyn Matcher) -> String {
     let bins = Bin::from_u8(&histogram);
     let matches = bin_glyph_matcher(&bins, matcher);
