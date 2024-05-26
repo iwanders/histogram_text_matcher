@@ -1,12 +1,16 @@
 use histogram_text_matcher::glyphs::{Glyph, GlyphSet};
-use histogram_text_matcher::histogram_glyph_matcher;
 use histogram_text_matcher::image_support::image_to_histogram;
+use histogram_text_matcher::match_histogram_to_string;
 use histogram_text_matcher::Rect;
+
+// use histogram_text_matcher::histogram_glyph_matcher;
+// use histogram_text_matcher::Token;
+
+// use histogram_text_matcher::Bin;
 use image::open;
 use image::{GenericImageView, Rgb};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-
 #[derive(Deserialize, Debug)]
 struct AnnotatedImage {
     file_path: String,
@@ -19,9 +23,16 @@ struct AnnotatedImage {
 struct Collection {
     base_dir: Option<String>,
     images: Vec<AnnotatedImage>,
+
+    #[serde(default)]
+    histogram_add_zero_start_end: bool,
+
     #[serde(default)]
     drop_space: bool,
     // If letters fall apart into two intervals... we can express for each char how many intervals it spans here.
+    #[serde(default)]
+    space_min_size: Option<u8>,
+
     #[serde(default)]
     char_intervals: std::collections::HashMap<char, usize>,
 }
@@ -278,8 +289,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         for (hist, name) in &annotated {
             let mut padded_hist = (*hist).clone();
-            padded_hist.insert(0, 0);
-            padded_hist.push(0);
+            if collection.histogram_add_zero_start_end {
+                padded_hist.insert(0, 0);
+                padded_hist.push(0);
+            }
             if annotated.len() == 1 {
                 let hits = entries.len();
                 println!("Data agrees for {c:?}  ({hits: >3} hits)  {padded_hist:?}");
@@ -301,6 +314,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("No ambiguity found");
     }
 
+    if let Some(space_min_size) = collection.space_min_size {
+        println!("Inserting space character of: {space_min_size}");
+        let mut g = Glyph::new(&vec![0; space_min_size as usize], " ");
+        g.set_max_consecutive(Some(1));
+        g.set_trim_left(true);
+        g.set_trim_right(true);
+        g.set_ignore_on_lstrip(true);
+        glyph_set.entries.push(g);
+    }
+
     glyph_set.line_height = tallest as u32;
     glyph_set.prepare();
 
@@ -316,17 +339,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .expect("writing should succeed");
 
+    let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
     // Next, run through text_histogram with our created glyph set and see how we did.
     for (text, histogram, name) in text_histogram.iter() {
         // println!("Name; {name}");
         // println!("hist; {histogram:?}");
         // println!("text; {text}");
-        let matches = histogram_glyph_matcher(&histogram, &glyph_set, 0);
-        let s = matches.iter().map(|(g, _v)| g.glyph()).collect::<String>();
-        let text_without_space = text.clone().replace(" ", "");
+
+        // let matches = histogram_glyph_matcher(&histogram, &glyph_set, 0);
+        // let s = matches.iter().map(|(g, _v)| g.glyph()).collect::<String>();
+
+        let final_string = match_histogram_to_string(histogram, &matcher);
+
+        // let s = matches.iter().map(|m|m.token).map(|(g, _v)| g.glyph()).collect::<String>();
+        // let s = matches.iter().map(|m|m.token).map(|(g, _v)| g.glyph()).collect::<String>();
+        let text_to_compare = if collection.drop_space {
+            text.clone().replace(" ", "")
+        } else {
+            text.clone()
+        };
+        // println!("s: {s:?}");
+        // println!("c: {text_to_compare:?}");
         println!(
-            "{name}: {s}   {text} '{text_without_space}' {}",
-            if s == *text_without_space {
+            "{name}: found: {final_string:?}  provided: {text} compare: '{text_to_compare}' {}",
+            if final_string == *text_to_compare {
                 "✔️"
             } else {
                 "❌"

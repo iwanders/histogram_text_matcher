@@ -92,7 +92,7 @@ pub fn histogram_glyph_matcher(
         scores.resize(set.entries.len(), 0 as ScoreType);
         for (glyph, score) in set.entries.iter().zip(scores.iter_mut()) {
             // In this function, all glyphs must have an lstrip histogram as all whitespace is
-            // stirpped.
+            // stripped.
             let hist = glyph
                 .lstrip_hist()
                 .expect("all glyphs must have lstrip histogram");
@@ -140,6 +140,14 @@ impl Bin {
         v.iter()
             .map(|x| Bin {
                 count: *x,
+                label: 0,
+            })
+            .collect()
+    }
+    pub fn from_u8(v: &[u8]) -> Vec<Bin> {
+        v.iter()
+            .map(|x| Bin {
+                count: *x as u32,
                 label: 0,
             })
             .collect()
@@ -225,7 +233,7 @@ pub trait Matcher {
 /// This function takes a histogram made up of bins and a matcher, with this it creates a set of
 /// matches in this particular histogram. These 1D matches hold tokens, either whitespace or
 /// glyphs at a particular position.
-fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
+pub fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
@@ -349,6 +357,22 @@ fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Mat
         }
     }
     res
+}
+
+/// Return a string as best matched from the provided histogram.
+pub fn match_histogram_to_string(histogram: &[u8], matcher: &dyn Matcher) -> String {
+    let bins = Bin::from_u8(&histogram);
+    let matches = bin_glyph_matcher(&bins, matcher);
+    let mut s = String::new();
+    for m in matches {
+        match m.token {
+            Token::WhiteSpace(_) => {}
+            Token::Glyph { glyph, .. } => {
+                s.push_str(glyph.glyph());
+            }
+        }
+    }
+    s.trim().to_owned()
 }
 
 /// Struct to represent a rectangle.

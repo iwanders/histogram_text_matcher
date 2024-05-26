@@ -209,6 +209,18 @@ fn to_yaml_string(set: &GlyphSet) -> String {
                 "    hist: {}\n",
                 serde_json::to_string(&entry.hist).unwrap()
             ));
+            if entry.ignore_on_lstrip {
+                s.push_str("    ignore_on_lstrip: true\n");
+            }
+            if let Some(max_count) = entry.max_consecutive {
+                s.push_str(&format!("    max_consecutive: {max_count}\n"));
+            }
+            if entry.trim_left {
+                s.push_str("    trim_left: true\n");
+            }
+            if entry.trim_right {
+                s.push_str("    trim_right: true\n");
+            }
         }
     } else {
         s.push_str(&format!("entries: []\n"));
