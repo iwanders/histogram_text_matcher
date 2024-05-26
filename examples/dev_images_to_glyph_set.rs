@@ -1,4 +1,5 @@
 use histogram_text_matcher::glyphs::{Glyph, GlyphSet};
+use histogram_text_matcher::histogram_glyph_matcher;
 use histogram_text_matcher::image_support::image_to_histogram;
 use histogram_text_matcher::Rect;
 use image::open;
@@ -18,6 +19,8 @@ struct AnnotatedImage {
 struct Collection {
     base_dir: Option<String>,
     images: Vec<AnnotatedImage>,
+    #[serde(default)]
+    drop_space: bool,
     // If letters fall apart into two intervals... we can express for each char how many intervals it spans here.
     #[serde(default)]
     char_intervals: std::collections::HashMap<char, usize>,
@@ -108,8 +111,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Now... we need text + histogram -> glyph :/
         // Let us start by pruning the left zeros.
-
-        text_histogram.push((img.text.clone(), histogram, name));
+        println!("img text: {}   name: {name}", img.text);
+        let text = if collection.drop_space {
+            img.text.clone().replace(" ", "")
+        } else {
+            img.text.clone()
+        };
+        text_histogram.push((text, histogram, name));
     }
 
     fn splitter(
@@ -179,7 +187,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut bearing_info: std::collections::HashMap<String, Vec<(usize, String)>> =
         Default::default();
 
-    for (text, histogram, name) in text_histogram {
+    for (text, histogram, name) in text_histogram.clone() {
         let mut interval_pos = 0;
         let chars = text.chars().collect::<Vec<char>>();
         let intervals = splitter(&histogram, &chars, &collection.char_intervals);
@@ -283,7 +291,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Ambiguity for char {c:?}, from {name}: {hist:?}");
                 glyph_set
                     .entries
-                    .push(Glyph::new(&padded_hist, &format!("{c}_{name}")));
+                    .push(Glyph::new(&padded_hist, &format!("{c}")));
             }
         }
     }
@@ -307,6 +315,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &glyph_set,
     )
     .expect("writing should succeed");
+
+    // Next, run through text_histogram with our created glyph set and see how we did.
+    for (text, histogram, name) in text_histogram.iter() {
+        // println!("Name; {name}");
+        // println!("hist; {histogram:?}");
+        // println!("text; {text}");
+        let matches = histogram_glyph_matcher(&histogram, &glyph_set, 0);
+        let s = matches.iter().map(|(g, _v)| g.glyph()).collect::<String>();
+        let text_without_space = text.clone().replace(" ", "");
+        println!(
+            "{name}: {s}   {text} '{text_without_space}' {}",
+            if s == *text_without_space {
+                "✔️"
+            } else {
+                "❌"
+            }
+        );
+    }
 
     Ok(())
 }
