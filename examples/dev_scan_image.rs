@@ -3,10 +3,13 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 fn main() {
-    if std::env::args().len() <= 1 {
+    let args = std::env::args();
+    if args.len() <= 1 || (args.len() == 2 && args.last().unwrap() == "--help") {
         println!("expected: ./binary glyph_set_file input_image_file labels_json [output_file]");
         println!("glyph_set_file: File to load the glyph set from.");
         println!("input_image_file: File to search in.");
+        println!("labels_json: '[[255, 168, 0, 0]]'");
+        println!("example: cargo r --example dev_scan_image -- ../private_repo/glyphs/glyph_set25.yaml  /tmp/Screenshot768.png '[[255, 168, 0, 0]]'");
         std::process::exit(1);
     }
 
