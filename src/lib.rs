@@ -302,7 +302,7 @@ pub fn bin_glyph_matcher<'a>(
             let position =
                 (i as u32).saturating_sub(if use_stripped { first_non_zero } else { 0 } as u32);
             // Position where histogram where this letter has the first non-zero;
-            let label_position = position as usize + first_non_zero;
+            //let label_position = position as usize + first_non_zero;
 
             // Add the newly detected glyph
             res.push(Match {
@@ -612,6 +612,7 @@ where
 }
 
 // Helper to subtract a row from the histogram.
+
 fn sub_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histograms: &mut [LabelledHistogram])
 where
     u8: PartialEq<<P as Pixel>::Subpixel>,
@@ -682,58 +683,32 @@ where
             window_size,
         }
     }
-}
 
-/// Return value for the histogram iterator.
-pub struct WindowHistogram {
-    histograms: Vec<LabelledHistogram>,
-    y: u32,
-}
-impl WindowHistogram {
-    /// The y coordinate in the image for this histogram.
-    pub fn y(&self) -> u32 {
-        self.y
-    }
-
-    /// The histogram at this y coordinate.
-    pub fn histograms(&self) -> &[LabelledHistogram] {
-        &self.histograms
-    }
-}
-
-/// Iterator implementation.
-impl<'a, 'b, I: GenericImageView> Iterator for WindowHistogramIterator<'a, 'b, I>
-where
-    u8: PartialEq<<<I as GenericImageView>::Pixel as Pixel>::Subpixel>,
-{
-    type Item = WindowHistogram;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Copy the result first, as the new function setup the first histogram.
-        // TODO: what is with this lack of elegance here and copying the entire image!?
-        let new_res = Some(WindowHistogram {
-            histograms: self.histograms.clone(),
-            y: self.y,
-        });
-
+    pub fn advance(&mut self) -> bool {
         if self.y < ((self.image.height() - self.window_size) as u32) {
             // Then update the window
             for x in 0..self.image.width() {
                 let p = self.image.get_pixel(x, self.y);
                 sub_pixel(x as usize, &p, self.labels, &mut self.histograms);
-            }
 
-            // Add the side moving into the histogram.
-            for x in 0..self.image.width() {
+                // Add the side moving into the histogram.
                 let p = self.image.get_pixel(x, self.y + self.window_size);
                 add_pixel(x as usize, &p, self.labels, &mut self.histograms);
             }
+
             self.y += 1;
 
-            return new_res;
+            true
+        } else {
+            false
         }
-
-        None
+    }
+    pub fn histograms(&self) -> &[LabelledHistogram] {
+        &self.histograms
+    }
+    /// The y coordinate in the image for this histogram.
+    pub fn y(&self) -> u32 {
+        self.y
     }
 }
 
@@ -755,11 +730,12 @@ where
     // Once the matches here move out of the window, we move them to res itself.
 
     // Create our histogram iterator.
-    let iterable = WindowHistogramIterator::new(image, labels, window_size);
-    for bin in iterable {
-        let y = bin.y();
+    let mut iterable = WindowHistogramIterator::new(image, labels, window_size);
+    let mut more_to_come = true;
+    while more_to_come {
+        let y = iterable.y();
         let mut matches_2d: Vec<Match2D<'a>> = vec![];
-        for labelled_histogram in bin.histograms().iter() {
+        for labelled_histogram in iterable.histograms().iter() {
             // Find glyphs in the histogram.
             let matches = bin_glyph_matcher(&labelled_histogram, matcher);
 
@@ -771,7 +747,11 @@ where
 
         // Move matches from res_consider to res_final.
         finalize_considerations(y, &mut res_consider, &mut res_final);
+
+        // Only advance afterwards
+        more_to_come = iterable.advance();
     }
+
     res_final.extend(res_consider.drain(..));
 
     res_final

@@ -289,7 +289,6 @@ mod matcher_tests {
     use super::*;
     #[test]
     fn test_take_longest() {
-        use crate::Bin;
         let a = Glyph::new(&[0, 0, 13, 0, 0], &"a");
         let b = Glyph::new(&[0, 0, 13, 0, 0, 0], &"b");
         let z = [a, b];
