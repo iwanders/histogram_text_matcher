@@ -126,35 +126,8 @@ pub fn histogram_glyph_matcher(
     res
 }
 
-pub type HistogramType = u32;
-/// Representation of a histogram bin and associated label color.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Bin {
-    /// The number of matching pixels in this histogram bin.
-    pub count: HistogramType,
-    /// The most recently seen label in this bin.
-    pub label: u32,
-}
-
-impl Bin {
-    /// Helper function to create a vector of bins from a slice of counts.
-    pub fn from(v: &[u32]) -> Vec<Bin> {
-        v.iter()
-            .map(|x| Bin {
-                count: *x,
-                label: 0,
-            })
-            .collect()
-    }
-    pub fn from_u8(v: &[u8]) -> Vec<Bin> {
-        v.iter()
-            .map(|x| Bin {
-                count: *x as u32,
-                label: 0,
-            })
-            .collect()
-    }
-}
+/// The data type used in histograms, this is also the maximum height of the window.
+pub type HistogramType = u32; // Do not make this u16, that's much slower.
 
 /// Relate a particular color to a label.
 pub type ColorLabel = (Rgb<u8>, u32);
@@ -607,6 +580,7 @@ where
             && color.0[2] == p.channels()[2];
         if matches {
             histograms[i].histogram[x] += 1;
+            break;
         }
     }
 }
@@ -623,19 +597,20 @@ where
             && color.0[2] == p.channels()[2];
         if matches {
             histograms[i].histogram[x] = histograms[i].histogram[x].saturating_sub(1);
+            break;
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct LabelledHistogram {
-    histogram: Vec<u32>,
+    histogram: Vec<HistogramType>,
     label: ColorLabel,
 }
 impl LabelledHistogram {
     pub fn from_u8(data: &[u8], label: ColorLabel) -> Self {
         Self {
-            histogram: data.iter().map(|z| *z as u32).collect(),
+            histogram: data.iter().map(|z| *z as HistogramType).collect(),
             label,
         }
     }
@@ -667,6 +642,16 @@ where
                 label: *l,
             };
             histograms.push(labelled_histogram);
+        }
+        // Check if the colors are unique here.
+        {
+            let mut color_set = std::collections::HashSet::new();
+            for l in labels {
+                color_set.insert(l.0);
+            }
+            if color_set.len() != labels.len() {
+                panic!("the colors in labels may not hold duplicates");
+            }
         }
         for y in 0..window_size {
             for x in 0..image.width() {
