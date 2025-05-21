@@ -125,11 +125,12 @@ pub fn histogram_glyph_matcher(
     res
 }
 
+pub type HistogramType = u32;
 /// Representation of a histogram bin and associated label color.
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Bin {
     /// The number of matching pixels in this histogram bin.
-    pub count: u32,
+    pub count: HistogramType,
     /// The most recently seen label in this bin.
     pub label: u32,
 }
@@ -206,8 +207,8 @@ pub struct Match<'a> {
 
 /// Trait that provides glyph matching functionality.
 pub trait Matcher {
-    fn find_match(&self, histogram: &[Bin]) -> Option<&glyphs::Glyph>;
-    fn lstrip_find_match(&self, histogram: &[Bin]) -> Option<&glyphs::Glyph>;
+    fn find_match(&self, histogram: &[HistogramType]) -> Option<&glyphs::Glyph>;
+    fn lstrip_find_match(&self, histogram: &[HistogramType]) -> Option<&glyphs::Glyph>;
 }
 
 // There are situation where linear - longest glyph matching is not correct;
@@ -233,16 +234,21 @@ pub trait Matcher {
 /// This function takes a histogram made up of bins and a matcher, with this it creates a set of
 /// matches in this particular histogram. These 1D matches hold tokens, either whitespace or
 /// glyphs at a particular position.
-pub fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec<Match<'a>> {
+pub fn bin_glyph_matcher<'a>(
+    labelled_histogram: &LabelledHistogram,
+    matcher: &'a dyn Matcher,
+) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
     let mut res: Vec<Match<'a>> = Vec::new();
 
-    fn _pattern_matches(pattern: &[u8], to_match: &[Bin]) -> bool {
+    fn _pattern_matches(pattern: &[u8], to_match: &[HistogramType]) -> bool {
         let min = std::cmp::min(pattern.len(), to_match.len());
         let a = pattern[0..min].iter().map(|x| *x);
-        let b = to_match[0..min].iter().map(|x| x.count as u8);
+        let b = to_match[0..min].iter().map(|x| *x as u8);
         a.eq(b)
     }
+
+    let histogram = &labelled_histogram.histogram;
 
     // Boolean to keep track of whether we are using stripped values or non stripped values
     // to compare.
@@ -252,7 +258,7 @@ pub fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec
         // If we are using stripped symbols, remove the padding from the left, this will be very
         // fast.
         if use_stripped {
-            if histogram[i].count == 0 {
+            if histogram[i] == 0 {
                 // This checks if the last entry in the current matches is a whitespace token,
                 // if it is, we will add one to it, otherwise, we push a new whitespace token.
                 // CONSIDER: this is less than ideal, may want to do something smart here
@@ -302,7 +308,7 @@ pub fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec
                 position: position,
                 token: Token::Glyph {
                     glyph: found_glyph,
-                    label: histogram[label_position].label,
+                    label: labelled_histogram.label.1,
                 },
                 width: found_glyph.hist().len() as u32,
             });
@@ -330,8 +336,8 @@ pub fn bin_glyph_matcher<'a>(histogram: &[Bin], matcher: &'a dyn Matcher) -> Vec
 ///
 /// This is the function to use when matching a single line to a single string.
 pub fn match_histogram_to_string(histogram: &[u8], matcher: &dyn Matcher) -> String {
-    let bins = Bin::from_u8(&histogram);
-    let matches = bin_glyph_matcher(&bins, matcher);
+    let labelled_histogram = LabelledHistogram::from_u8(histogram, (Rgb([255, 255, 255]), 0));
+    let matches = bin_glyph_matcher(&labelled_histogram, matcher);
     let mut s = String::new();
     for m in matches {
         match m.token {
@@ -590,36 +596,8 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
 }
 
 // Helper to add a row to the histogram.
-fn add_pixel<P: Pixel>(
-    x: usize,
-    p: &P,
-    labels: &[ColorLabel],
-    histogram: &mut [Bin],
-    histograms: &mut [LabelledHistogram],
-) where
-    u8: PartialEq<<P as Pixel>::Subpixel>,
-{
-    for (i, (color, label)) in labels.iter().enumerate() {
-        let matches = color.0[0] == p.channels()[0]
-            && color.0[1] == p.channels()[1]
-            && color.0[2] == p.channels()[2];
-        if matches {
-            histogram[x].count += 1;
-            histogram[x].label = *label;
-            //return;
-            histograms[i].histogram[x] += 1;
-        }
-    }
-}
-
-// Helper to subtract a row from the histogram.
-fn sub_pixel<P: Pixel>(
-    x: usize,
-    p: &P,
-    labels: &[ColorLabel],
-    histogram: &mut [Bin],
-    histograms: &mut [LabelledHistogram],
-) where
+fn add_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histograms: &mut [LabelledHistogram])
+where
     u8: PartialEq<<P as Pixel>::Subpixel>,
 {
     for (i, (color, _label)) in labels.iter().enumerate() {
@@ -627,17 +605,38 @@ fn sub_pixel<P: Pixel>(
             && color.0[1] == p.channels()[1]
             && color.0[2] == p.channels()[2];
         if matches {
-            histogram[x].count = histogram[x].count.saturating_sub(1);
+            histograms[i].histogram[x] += 1;
+        }
+    }
+}
+
+// Helper to subtract a row from the histogram.
+fn sub_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histograms: &mut [LabelledHistogram])
+where
+    u8: PartialEq<<P as Pixel>::Subpixel>,
+{
+    for (i, (color, _label)) in labels.iter().enumerate() {
+        let matches = color.0[0] == p.channels()[0]
+            && color.0[1] == p.channels()[1]
+            && color.0[2] == p.channels()[2];
+        if matches {
             histograms[i].histogram[x] = histograms[i].histogram[x].saturating_sub(1);
-            //return;
         }
     }
 }
 
 #[derive(Debug, Clone)]
-struct LabelledHistogram {
+pub struct LabelledHistogram {
     histogram: Vec<u32>,
     label: ColorLabel,
+}
+impl LabelledHistogram {
+    pub fn from_u8(data: &[u8], label: ColorLabel) -> Self {
+        Self {
+            histogram: data.iter().map(|z| *z as u32).collect(),
+            label,
+        }
+    }
 }
 
 /// Create an iterator that generates histogram lines.
@@ -674,7 +673,7 @@ where
         for y in 0..window_size {
             for x in 0..image.width() {
                 let p = image.get_pixel(x, y);
-                add_pixel(x as usize, &p, labels, &mut histogram, &mut histograms);
+                add_pixel(x as usize, &p, labels, &mut histograms);
             }
         }
 
@@ -691,7 +690,6 @@ where
 
 /// Return value for the histogram iterator.
 pub struct WindowHistogram {
-    histogram: Vec<Bin>,
     histograms: Vec<LabelledHistogram>,
     y: u32,
 }
@@ -702,8 +700,8 @@ impl WindowHistogram {
     }
 
     /// The histogram at this y coordinate.
-    pub fn histogram(&self) -> &[Bin] {
-        &self.histogram
+    pub fn histograms(&self) -> &[LabelledHistogram] {
+        &self.histograms
     }
 }
 
@@ -718,7 +716,6 @@ where
         // Copy the result first, as the new function setup the first histogram.
         // TODO: what is with this lack of elegance here and copying the entire image!?
         let new_res = Some(WindowHistogram {
-            histogram: self.histogram.clone(),
             histograms: self.histograms.clone(),
             y: self.y,
         });
@@ -727,25 +724,13 @@ where
             // Then update the window
             for x in 0..self.image.width() {
                 let p = self.image.get_pixel(x, self.y);
-                sub_pixel(
-                    x as usize,
-                    &p,
-                    self.labels,
-                    &mut self.histogram,
-                    &mut self.histograms,
-                );
+                sub_pixel(x as usize, &p, self.labels, &mut self.histograms);
             }
 
             // Add the side moving into the histogram.
             for x in 0..self.image.width() {
                 let p = self.image.get_pixel(x, self.y + self.window_size);
-                add_pixel(
-                    x as usize,
-                    &p,
-                    self.labels,
-                    &mut self.histogram,
-                    &mut self.histograms,
-                );
+                add_pixel(x as usize, &p, self.labels, &mut self.histograms);
             }
             self.y += 1;
 
@@ -778,18 +763,9 @@ where
     for bin in iterable {
         let y = bin.y();
         let mut matches_2d: Vec<Match2D<'a>> = vec![];
-        for labelled_histogram in bin.histograms.iter() {
-            let histogram = &labelled_histogram.histogram;
-            let binhist = histogram
-                .iter()
-                .map(|z| Bin {
-                    count: z.clone(),
-                    label: labelled_histogram.label.1,
-                })
-                .collect::<Vec<_>>();
-
+        for labelled_histogram in bin.histograms().iter() {
             // Find glyphs in the histogram.
-            let matches = bin_glyph_matcher(&binhist, matcher);
+            let matches = bin_glyph_matcher(&labelled_histogram, matcher);
 
             // Resolve the found matches and group the consecutive tokens into 2d matches.
             matches_2d.extend(match_resolver(y, window_size, &matches));
@@ -812,13 +788,8 @@ mod tests {
         render_standard_alphabet, render_standard_color, standard_alphabet,
     };
 
-    fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> Vec<Bin> {
-        hist.iter()
-            .map(|x| Bin {
-                count: *x as u32,
-                label: 0,
-            })
-            .collect::<_>()
+    fn simple_histogram_to_bin_histogram(hist: &SimpleHistogram) -> LabelledHistogram {
+        LabelledHistogram::from_u8(hist, (Rgb([255, 255, 255]), 0))
     }
 
     #[test]

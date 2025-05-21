@@ -82,7 +82,7 @@ impl LookupMatcher {
     /// Find a glyph matching the provided histogram. Returns None if no glyph exactly matches this
     /// histogram, if multiple glyphs would match perfectly it returns the one that occured earliest
     /// in the original slice used to setup the glyph matcher.
-    pub fn find_match(&self, histogram: &[crate::Bin]) -> Option<&Glyph> {
+    pub fn find_match(&self, histogram: &[crate::HistogramType]) -> Option<&Glyph> {
         let mut c: &LookupNode = &self.tree;
         let mut best: &LookupNode = c;
 
@@ -98,7 +98,7 @@ impl LookupMatcher {
         // Iterate through the values in d.
         for b in histogram.iter() {
             // Use the value in the histrogram as index.
-            let v = b.count as usize;
+            let v = *b as usize;
 
             if c.children.len() == 0 {
                 // Reached a leaf in the tree, return the glyph... we must have one, otherwise 'c'
@@ -262,10 +262,10 @@ impl LongestGlyphMatcher {
 
 /// Implementation for the Matcher trait for the LongestGlyphMatcher.
 impl crate::Matcher for LongestGlyphMatcher {
-    fn find_match(&self, histogram: &[crate::Bin]) -> Option<&Glyph> {
+    fn find_match(&self, histogram: &[crate::HistogramType]) -> Option<&Glyph> {
         self.matcher.find_match(histogram)
     }
-    fn lstrip_find_match(&self, histogram: &[crate::Bin]) -> Option<&Glyph> {
+    fn lstrip_find_match(&self, histogram: &[crate::HistogramType]) -> Option<&Glyph> {
         self.lstrip_matcher.find_match(histogram)
     }
 }
@@ -296,12 +296,12 @@ mod matcher_tests {
         let mut matcher: LookupMatcher = Default::default();
         matcher.prepare(&z, false);
         // In this case, both a and b would match, but b is the longer match so should be taken.
-        let res = matcher.find_match(&Bin::from(&[0, 0, 13, 0, 0, 0, 1]));
+        let res = matcher.find_match(&[0, 0, 13, 0, 0, 0, 1]);
         assert!(res.is_some());
         assert_eq!(res.unwrap(), &z[1]);
 
         // This will match a, but not b, we should get a, because it still matches perfectly.
-        let res = matcher.find_match(&Bin::from(&[0, 0, 13, 0, 0, 1]));
+        let res = matcher.find_match(&[0, 0, 13, 0, 0, 1]);
         assert!(res.is_some());
         assert_eq!(res.unwrap(), &z[0]);
     }
