@@ -580,6 +580,7 @@ where
             && color.0[2] == p.channels()[2];
         if matches {
             histograms[i].histogram[x] += 1;
+            histograms[0].label_hint = i;
             break;
         }
     }
@@ -591,12 +592,14 @@ fn sub_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histograms: &mut 
 where
     u8: PartialEq<<P as Pixel>::Subpixel>,
 {
+    // TODO; we should just keep the u32 mask we did with the addition and run through that quickly to subtract.
     for (i, (color, _label)) in labels.iter().enumerate() {
         let matches = color.0[0] == p.channels()[0]
             && color.0[1] == p.channels()[1]
             && color.0[2] == p.channels()[2];
         if matches {
             histograms[i].histogram[x] = histograms[i].histogram[x].saturating_sub(1);
+            histograms[0].label_hint = i;
             break;
         }
     }
@@ -606,12 +609,14 @@ where
 pub struct LabelledHistogram {
     histogram: Vec<HistogramType>,
     label: ColorLabel,
+    label_hint: usize,
 }
 impl LabelledHistogram {
     pub fn from_u8(data: &[u8], label: ColorLabel) -> Self {
         Self {
             histogram: data.iter().map(|z| *z as HistogramType).collect(),
             label,
+            label_hint: 0,
         }
     }
 }
@@ -640,6 +645,7 @@ where
             let labelled_histogram = LabelledHistogram {
                 histogram: vec![0; image.width() as usize],
                 label: *l,
+                label_hint: 0,
             };
             histograms.push(labelled_histogram);
         }
