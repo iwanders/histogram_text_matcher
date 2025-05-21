@@ -13,6 +13,7 @@ pub mod glyphs;
 // mod interface;
 // pub use interface::*;
 
+pub use image;
 use image::{GenericImageView, Pixel, Rgb};
 
 pub mod matcher;
@@ -642,7 +643,6 @@ impl LabelledHistogram {
 /// Create an iterator that generates histogram lines.
 pub struct WindowHistogramIterator<'a, 'b, I: GenericImageView> {
     image: &'b I,
-    histogram: Vec<Bin>,
     y: u32,
     labels: &'a [ColorLabel],
     window_size: u32,
@@ -659,9 +659,6 @@ where
         labels: &'a [ColorLabel],
         window_size: u32,
     ) -> WindowHistogramIterator<'a, 'b, I> {
-        let mut histogram: Vec<Bin> = Vec::new();
-        histogram.resize(image.width() as usize, Default::default());
-
         let mut histograms: Vec<LabelledHistogram> = Vec::new();
         for l in labels {
             let labelled_histogram = LabelledHistogram {
@@ -679,7 +676,6 @@ where
 
         WindowHistogramIterator {
             image,
-            histogram,
             histograms,
             y: 0,
             labels,
