@@ -15,7 +15,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let glyph_set = histogram_text_matcher::glyphs::load_glyph_set(&glyph_path)
         .expect(&format!("could not load glyph set at {:?}", glyph_set_file));
 
-    let image = histogram_text_matcher::image_support::rgb_image_to_view(&image);
+    //let image = histogram_text_matcher::image_support::rgb_image_to_view(&image);
 
     let matcher = histogram_text_matcher::matcher::LongestGlyphMatcher::new(&glyph_set.entries);
 
