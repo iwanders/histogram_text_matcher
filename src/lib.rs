@@ -210,10 +210,10 @@ pub trait Matcher {
 /// glyphs at a particular position.
 pub fn bin_glyph_matcher<'a>(
     labelled_histogram: &LabelledHistogram,
-    matcher: &'a dyn Matcher,
+    matcher: &'a (impl Matcher + ?Sized),
 ) -> Vec<Match<'a>> {
     let mut i: usize = 0; // index into the histogram.
-    let mut res: Vec<Match<'a>> = Vec::new();
+    let mut res: Vec<Match<'a>> = Vec::with_capacity(32);
 
     fn _pattern_matches(pattern: &[u8], to_match: &[HistogramType]) -> bool {
         let min = std::cmp::min(pattern.len(), to_match.len());
@@ -239,12 +239,8 @@ pub fn bin_glyph_matcher<'a>(
                 // run through it once to identify whitespace jumps at the top to prepare
                 // then here just do a single jump if within one of the whitespace intervals.
 
-                // https://stackoverflow.com/a/32554326
                 let mut last = res.last_mut();
-                if last.is_some()
-                    && std::mem::discriminant(&last.as_ref().unwrap().token)
-                        == std::mem::discriminant(&Token::WhiteSpace(0))
-                {
+                if matches!(last.as_ref().map(|z| z.token), Some(Token::WhiteSpace(_))) {
                     last.as_mut().unwrap().width += 1;
                     if let Token::WhiteSpace(ref mut z) = last.unwrap().token {
                         *z += 1;
