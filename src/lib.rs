@@ -569,55 +569,51 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
     res
 }
 
-// Helper to add a row to the histogram.
-fn add_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histograms: &mut [LabelledHistogram])
-where
-    u8: PartialEq<<P as Pixel>::Subpixel>,
-{
-    for (i, (color, _label)) in labels.iter().enumerate() {
-        let matches = color.0[0] == p.channels()[0]
-            && color.0[1] == p.channels()[1]
-            && color.0[2] == p.channels()[2];
-        if matches {
-            histograms[i].histogram[x] += 1;
-            histograms[0].label_hint = i;
-            break;
-        }
-    }
-}
-
-// Helper to subtract a row from the histogram.
-
-fn sub_pixel<P: Pixel>(x: usize, p: &P, labels: &[ColorLabel], histograms: &mut [LabelledHistogram])
-where
-    u8: PartialEq<<P as Pixel>::Subpixel>,
-{
-    // TODO; we should just keep the u32 mask we did with the addition and run through that quickly to subtract.
-    for (i, (color, _label)) in labels.iter().enumerate() {
-        let matches = color.0[0] == p.channels()[0]
-            && color.0[1] == p.channels()[1]
-            && color.0[2] == p.channels()[2];
-        if matches {
-            histograms[i].histogram[x] = histograms[i].histogram[x].saturating_sub(1);
-            histograms[0].label_hint = i;
-            break;
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct LabelledHistogram {
+    past_histograms: Vec<Vec<HistogramType>>,
     histogram: Vec<HistogramType>,
     label: ColorLabel,
-    label_hint: usize,
 }
 impl LabelledHistogram {
     pub fn from_u8(data: &[u8], label: ColorLabel) -> Self {
         Self {
             histogram: data.iter().map(|z| *z as HistogramType).collect(),
             label,
-            label_hint: 0,
+            past_histograms: vec![],
         }
+    }
+    fn add_pixel<P: Pixel>(&mut self, x: usize, p: P) -> bool
+    where
+        u8: PartialEq<<P as Pixel>::Subpixel>,
+    {
+        let color = self.label.0;
+
+        let matches = color.0[0] == p.channels()[0]
+            && color.0[1] == p.channels()[1]
+            && color.0[2] == p.channels()[2];
+        if matches {
+            self.histogram[x] += 1;
+            return true;
+        }
+        false
+    }
+
+    fn sub_pixel<P: Pixel>(&mut self, x: usize, p: P) -> bool
+    where
+        u8: PartialEq<<P as Pixel>::Subpixel>,
+    {
+        let color = self.label.0;
+        // TODO; we should just keep the u32 mask we did with the addition and run through that quickly to subtract.
+
+        let matches = color.0[0] == p.channels()[0]
+            && color.0[1] == p.channels()[1]
+            && color.0[2] == p.channels()[2];
+        if matches {
+            self.histogram[x] = self.histogram[x].saturating_sub(1);
+            return true;
+        }
+        return false;
     }
 }
 
@@ -645,7 +641,7 @@ where
             let labelled_histogram = LabelledHistogram {
                 histogram: vec![0; image.width() as usize],
                 label: *l,
-                label_hint: 0,
+                past_histograms: vec![],
             };
             histograms.push(labelled_histogram);
         }
@@ -662,7 +658,11 @@ where
         for y in 0..window_size {
             for x in 0..image.width() {
                 let p = image.get_pixel(x, y);
-                add_pixel(x as usize, &p, labels, &mut histograms);
+                for h in histograms.iter_mut() {
+                    if h.add_pixel(x as usize, p) {
+                        break;
+                    }
+                }
             }
         }
 
@@ -680,11 +680,17 @@ where
             // Then update the window
             for x in 0..self.image.width() {
                 let p = self.image.get_pixel(x, self.y);
-                sub_pixel(x as usize, &p, self.labels, &mut self.histograms);
+                for h in self.histograms.iter_mut() {
+                    h.sub_pixel(x as usize, p);
+                }
 
                 // Add the side moving into the histogram.
                 let p = self.image.get_pixel(x, self.y + self.window_size);
-                add_pixel(x as usize, &p, self.labels, &mut self.histograms);
+                for h in self.histograms.iter_mut() {
+                    if h.add_pixel(x as usize, p) {
+                        break;
+                    }
+                }
             }
 
             self.y += 1;
