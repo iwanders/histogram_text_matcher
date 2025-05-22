@@ -229,8 +229,7 @@ pub fn bin_glyph_matcher<'a>(
     let mut use_stripped = true;
 
     while i < histogram.len() - 1 {
-        // If we are using stripped symbols, remove the padding from the left, this will be very
-        // fast.
+        // If we are using stripped symbols, remove the padding from the left, this will be very fast.
         if use_stripped {
             if histogram[i] == 0 {
                 // This checks if the last entry in the current matches is a whitespace token,
@@ -239,20 +238,15 @@ pub fn bin_glyph_matcher<'a>(
                 // run through it once to identify whitespace jumps at the top to prepare
                 // then here just do a single jump if within one of the whitespace intervals.
 
-                let mut last = res.last_mut();
-                if matches!(last.as_ref().map(|z| z.token), Some(Token::WhiteSpace(_))) {
-                    last.as_mut().unwrap().width += 1;
-                    if let Token::WhiteSpace(ref mut z) = last.unwrap().token {
-                        *z += 1;
-                    }
-                } else {
-                    res.push(Match {
-                        token: Token::WhiteSpace(1),
-                        position: i as u32,
-                        width: 1,
-                    });
-                }
-                i += 1;
+                // Find the up to the next index that's non zero.
+                let next_nonzero = histogram[i..].iter().position(|v| *v != 0);
+                let width = next_nonzero.unwrap_or(histogram.len() - i);
+                res.push(Match {
+                    token: Token::WhiteSpace(width - 1),
+                    position: i as u32,
+                    width: width as u32 - 1,
+                });
+                i += width;
                 continue;
             }
         }
@@ -271,7 +265,6 @@ pub fn bin_glyph_matcher<'a>(
             let position =
                 (i as u32).saturating_sub(if use_stripped { first_non_zero } else { 0 } as u32);
             // Position where histogram where this letter has the first non-zero;
-            //let label_position = position as usize + first_non_zero;
 
             // Add the newly detected glyph
             res.push(Match {
@@ -567,6 +560,7 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
 
 #[derive(Debug, Clone)]
 pub struct LabelledHistogram {
+    /// Past histogram holds a ringbuffer of a previous row of pixel value checks.
     past_histograms: VecDeque<Vec<HistogramType>>,
     histogram: Vec<HistogramType>,
     label: ColorLabel,
@@ -580,11 +574,13 @@ impl LabelledHistogram {
         }
     }
 
+    /// Add a new entry to the past histograms.
     pub fn add_past(&mut self) {
         self.past_histograms
             .push_back(vec![HistogramType::default(); self.histogram.len()]);
     }
 
+    /// Remove the effect of a past histogram by subtracting it from the current histogram.
     pub fn remove_past(&mut self) {
         if let Some(mut d) = self.past_histograms.pop_front() {
             for (i, v) in d.drain(..).enumerate() {
@@ -593,6 +589,7 @@ impl LabelledHistogram {
         }
     }
 
+    /// Add pixel adds this pixel to the histogram and adds this value to the current past histogram.
     fn add_pixel<P: Pixel>(&mut self, x: usize, p: P) -> bool
     where
         u8: PartialEq<<P as Pixel>::Subpixel>,
@@ -608,42 +605,26 @@ impl LabelledHistogram {
         }
         false
     }
-
-    fn sub_pixel<P: Pixel>(&mut self, x: usize, p: P) -> bool
-    where
-        u8: PartialEq<<P as Pixel>::Subpixel>,
-    {
-        let color = self.label.0;
-        let matches = color.0[0] == p.channels()[0]
-            && color.0[1] == p.channels()[1]
-            && color.0[2] == p.channels()[2];
-        if matches {
-            self.histogram[x] = self.histogram[x].saturating_sub(1);
-            return true;
-        }
-        return false;
-    }
 }
 
 /// Create an iterator that generates histogram lines.
-pub struct WindowHistogramIterator<'a, 'b, I: GenericImageView> {
+pub struct WindowHistogramIterator<'b, I: GenericImageView> {
     image: &'b I,
     y: u32,
-    labels: &'a [ColorLabel],
     window_size: u32,
     histograms: Vec<LabelledHistogram>,
 }
 
-impl<'a, 'b, I: GenericImageView> WindowHistogramIterator<'a, 'b, I>
+impl<'b, I: GenericImageView> WindowHistogramIterator<'b, I>
 where
     u8: PartialEq<<<I as GenericImageView>::Pixel as Pixel>::Subpixel>,
 {
     /// Construct a new sliding window histogram iterator, this creates the initial histogram state.
     pub fn new(
         image: &'b I,
-        labels: &'a [ColorLabel],
+        labels: &[ColorLabel],
         window_size: u32,
-    ) -> WindowHistogramIterator<'a, 'b, I> {
+    ) -> WindowHistogramIterator<'b, I> {
         let mut histograms: Vec<LabelledHistogram> = Vec::new();
         for l in labels {
             let labelled_histogram = LabelledHistogram {
@@ -681,7 +662,6 @@ where
             image,
             histograms,
             y: 0,
-            labels,
             window_size,
         }
     }
