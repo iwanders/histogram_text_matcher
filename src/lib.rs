@@ -571,7 +571,7 @@ pub fn match_resolver<'a>(y: u32, window_size: u32, matches: &[Match<'a>]) -> Ve
 
 #[derive(Debug, Clone)]
 pub struct LabelledHistogram {
-    past_histograms: Vec<Vec<HistogramType>>,
+    past_histograms: VecDeque<Vec<HistogramType>>,
     histogram: Vec<HistogramType>,
     label: ColorLabel,
 }
@@ -580,20 +580,34 @@ impl LabelledHistogram {
         Self {
             histogram: data.iter().map(|z| *z as HistogramType).collect(),
             label,
-            past_histograms: vec![],
+            past_histograms: Default::default(),
         }
     }
+
+    pub fn add_past(&mut self) {
+        self.past_histograms
+            .push_back(vec![HistogramType::default(); self.histogram.len()]);
+    }
+
+    pub fn remove_past(&mut self) {
+        if let Some(mut d) = self.past_histograms.pop_front() {
+            for (i, v) in d.drain(..).enumerate() {
+                self.histogram[i] -= v;
+            }
+        }
+    }
+
     fn add_pixel<P: Pixel>(&mut self, x: usize, p: P) -> bool
     where
         u8: PartialEq<<P as Pixel>::Subpixel>,
     {
         let color = self.label.0;
-
         let matches = color.0[0] == p.channels()[0]
             && color.0[1] == p.channels()[1]
             && color.0[2] == p.channels()[2];
         if matches {
             self.histogram[x] += 1;
+            self.past_histograms.back_mut().unwrap()[x] += 1;
             return true;
         }
         false
@@ -604,8 +618,6 @@ impl LabelledHistogram {
         u8: PartialEq<<P as Pixel>::Subpixel>,
     {
         let color = self.label.0;
-        // TODO; we should just keep the u32 mask we did with the addition and run through that quickly to subtract.
-
         let matches = color.0[0] == p.channels()[0]
             && color.0[1] == p.channels()[1]
             && color.0[2] == p.channels()[2];
@@ -641,7 +653,7 @@ where
             let labelled_histogram = LabelledHistogram {
                 histogram: vec![0; image.width() as usize],
                 label: *l,
-                past_histograms: vec![],
+                past_histograms: Default::default(),
             };
             histograms.push(labelled_histogram);
         }
@@ -656,6 +668,9 @@ where
             }
         }
         for y in 0..window_size {
+            for h in histograms.iter_mut() {
+                h.add_past();
+            }
             for x in 0..image.width() {
                 let p = image.get_pixel(x, y);
                 for h in histograms.iter_mut() {
@@ -677,13 +692,13 @@ where
 
     pub fn advance(&mut self) -> bool {
         if self.y < ((self.image.height() - self.window_size) as u32) {
+            for h in self.histograms.iter_mut() {
+                h.remove_past();
+                h.add_past();
+            }
+
             // Then update the window
             for x in 0..self.image.width() {
-                let p = self.image.get_pixel(x, self.y);
-                for h in self.histograms.iter_mut() {
-                    h.sub_pixel(x as usize, p);
-                }
-
                 // Add the side moving into the histogram.
                 let p = self.image.get_pixel(x, self.y + self.window_size);
                 for h in self.histograms.iter_mut() {
