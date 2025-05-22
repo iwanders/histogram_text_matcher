@@ -589,31 +589,11 @@ impl LabelledHistogram {
             .push_back(vec![HistogramType::default(); self.histogram.len()]);
     }
 
-    pub fn pop_past(&mut self) {
-        self.past_histograms.pop_front();
-    }
-
     pub fn remove_past(&mut self) {
         if let Some(mut d) = self.past_histograms.pop_front() {
             for (i, v) in d.drain(..).enumerate() {
                 self.histogram[i] -= v;
             }
-        }
-    }
-    fn update_pixel<P: Pixel>(&mut self, x: usize, p: P)
-    where
-        u8: PartialEq<<P as Pixel>::Subpixel>,
-    {
-        let color = self.label.0;
-        let matches = color.0[0] == p.channels()[0]
-            && color.0[1] == p.channels()[1]
-            && color.0[2] == p.channels()[2];
-
-        let d = self.past_histograms.front().unwrap();
-        self.histogram[x] -= d[x];
-        if matches {
-            self.histogram[x] += 1;
-            self.past_histograms.back_mut().unwrap()[x] += 1;
         }
     }
 
@@ -626,8 +606,8 @@ impl LabelledHistogram {
             && color.0[1] == p.channels()[1]
             && color.0[2] == p.channels()[2];
         if matches {
-            self.histogram[x] += matches as u32;
-            self.past_histograms.back_mut().unwrap()[x] += matches as u32;
+            self.histogram[x] += 1;
+            self.past_histograms.back_mut().unwrap()[x] += 1;
             return true;
         }
         false
@@ -713,6 +693,7 @@ where
     pub fn advance(&mut self) -> bool {
         if self.y < ((self.image.height() - self.window_size) as u32) {
             for h in self.histograms.iter_mut() {
+                h.remove_past();
                 h.add_past();
             }
 
@@ -721,14 +702,10 @@ where
                 // Add the side moving into the histogram.
                 let p = self.image.get_pixel(x, self.y + self.window_size);
                 for h in self.histograms.iter_mut() {
-                    h.update_pixel(x as usize, p);
-                    //if h.add_pixel(x as usize, p) {
-                    //    break;
-                    //}
+                    if h.add_pixel(x as usize, p) {
+                        break;
+                    }
                 }
-            }
-            for h in self.histograms.iter_mut() {
-                h.pop_past();
             }
 
             self.y += 1;
